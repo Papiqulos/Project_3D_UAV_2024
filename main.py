@@ -15,71 +15,75 @@ class Project(Scene3D):
 
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Project")
-        self.meshes = {}
-        self.plane_mesh = self.default_plane()
-        self.addShape(self.plane_mesh, "plane")
-        self.show_mesh()
 
-    # Contruct a default plane pointing in the upward y direction 
-    def default_plane(self, size:float = 2.0) -> Mesh3D:
-        # Define vertices of the plane (two triangles)
-        vertices = np.array([[-size,  0.0,  -size],  # Vertex 0
-                            [ size,  0.0,  -size],   # Vertex 1
-                            [ size,  0.0,   size],   # Vertex 2
-                            [-size,  0.0,   size]])  # Vertex 3
+        # Dictionary to store the meshes
+        self.meshes = {str: Mesh3D}
 
-        # Define triangles of the plane (two triangles)
-        triangles = np.array([[0, 1, 2],        # Triangle 1 (vertices 0-1-2)
-                            [0, 2, 3]])         # Triangle 2 (vertices 0-2-3)
+        # Dictionary to store the planes
+        self.planes = {str: Cuboid3D}
 
-        plane_mesh = Mesh3D(color=Color.GRAY)
-        plane_mesh.vertices = vertices
-        plane_mesh.triangles = triangles
-
-        # Making a 2*size x 2*size grid on the plane
-        # Vertical lines
-        self.vertical_lines = LineSet3D()
-        for i in range(1, 4):
-            line = Line3D([vertices[0][0] + i, vertices[0][1], vertices[0][2]], 
-                          [vertices[0][0] + i, vertices[0][1], vertices[0][2] + 2*size], 
-                          color=Color.RED)
-            self.vertical_lines.add(line)
-            self.addShape(line, f"line{i}")
-
-
-        # Horizontal lines
-        self.horizontal_lines = LineSet3D()
-        for i in range(1, 4):
-            line = Line3D([vertices[0][0], vertices[0][1], vertices[0][2] + i], 
-                          [vertices[0][0] + 2*size, vertices[0][1], vertices[0][2] + i], 
-                          color=Color.RED)
-            self.horizontal_lines.add(line)
-            self.addShape(line, f"line{i+3}")
-        
-          
-        return plane_mesh
-
-    def show_mesh(self):
-        self.mesh = Mesh3D("models/Helicopter.obj", color=Color.BLACK)
-        self.randomize_mesh(self.mesh)
-
-        self.mesh1 = Mesh3D("models/Helicopter.obj", color=Color.RED)   
-        self.randomize_mesh(self.mesh1)
-
-        self.mesh2 = Mesh3D("models/Helicopter.obj", color=Color.GREEN)
-        self.randomize_mesh(self.mesh2)
-
-        self.mesh3 = Mesh3D("models/Helicopter.obj", color=Color.BLUE)
-        self.randomize_mesh(self.mesh3)
-
-        self.mesh4 = Mesh3D("models/Helicopter.obj", color=Color.YELLOW)
-        self.randomize_mesh(self.mesh4)
+        # Dimension of the landing pad
+        self.N = 4
+        self.landing_pad()
+        self.show_drones()
 
         for mesh in self.meshes.keys():
             print(mesh)
+
+        for plane in self.planes.keys():
+            print(plane)
+
+    def landing_pad(self, size:float = 4.0) -> None:
+        '''Construct an NxN landing pad.
         
-    def randomize_mesh(self, mesh: Mesh3D, trans_thresold:int = 2) -> Mesh3D:
-        '''Randomizes the mesh and normalize inside the unit sphere.
+        Args:
+            size: The size of the landing pad
+        '''
+
+        # List of colours for the planes
+        colours = [Color.GRAY, 
+                   Color.WHITE]
+        
+        for i in range(self.N):
+            for j in range(self.N):
+                colour = colours[(i+j)%len(colours)]
+
+                plane = Cuboid3D(p1=[2*i - size, 0, 2*j - size], 
+                                 p2=[2*i+2 - size, -0.2, 2*j+2 - size], 
+                                 color=colour, 
+                                 filled = True)
+                
+                plane_id = f"plane_{i}_{j}"
+                self.addShape(plane, plane_id)
+                self.planes[plane_id] = plane
+        
+    def show_drones(self, num_drones:int = 10) -> None:
+        '''Show a certain number of drones in random positions.
+
+        Args:
+            num_drones: The number of drones
+        '''
+
+        # List of colours for the drones
+        colours = [Color.RED, 
+                   Color.GREEN, 
+                   Color.BLUE, 
+                   Color.YELLOW, 
+                   Color.BLACK, 
+                   Color.WHITE, 
+                   Color.GRAY, 
+                   Color.CYAN, 
+                   Color.MAGENTA, 
+                   Color.ORANGE]
+
+        for i in range(num_drones):
+            colour = colours[i%len(colours)]
+            mesh = Mesh3D(path="models/Helicopter.obj", color=colour)
+            mesh = self.randomize_mesh(mesh, i)
+            self.meshes[f"drone_{i}"] = mesh
+
+    def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0) -> Mesh3D:
+        '''Fits the mesh into the unit sphere and randomly translates it.
 
         Args:
             mesh: The mesh
@@ -92,9 +96,9 @@ class Project(Scene3D):
         mesh = self.unit_sphere_normalization(mesh)
 
         # Randomly translate the mesh
-        translation_vector = np.array([random.randint(-trans_thresold, trans_thresold), 
-                                       random.randint(-trans_thresold, trans_thresold), 
-                                       random.randint(-trans_thresold, trans_thresold)])
+        translation_vector = np.array([random.uniform(-trans_thresold, trans_thresold), 
+                                       random.uniform(0.5, trans_thresold), 
+                                       random.uniform(-trans_thresold, trans_thresold)])
         center = np.array([0, 0, 0])
         dir = np.array([1, 0, 0])
         vertices = mesh.vertices
@@ -102,19 +106,13 @@ class Project(Scene3D):
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
         mesh.vertices = transformed_vertices
 
-        # Give the mesh a random name
-        name = random.randint(0, 100)
-
         # Add the mesh to the scene
-        self.addShape(mesh, f"drone{name}")
-
-        # Store the mesh in the dictionary
-        self.meshes[f"drone{name}"] = mesh
+        self.addShape(mesh, f"drone{drone_id}")
 
         return mesh
 
     def unit_sphere_normalization(self, mesh:Mesh3D) -> Mesh3D:
-        '''Applies unit sphere normalization.
+        '''Applies unit sphere normalization to the mesh.
 
         Args:
             mesh: The mesh
@@ -124,13 +122,12 @@ class Project(Scene3D):
         '''
 
         mesh.vertices = np.array(mesh.vertices)
+        center = np.mean(mesh.vertices, axis=0)
+        mesh.vertices -= center
         max_distance = np.max(np.linalg.norm(mesh.vertices, axis=1))
         mesh.vertices /= max_distance
 
         return mesh
-        
-
-
 
 if __name__ == "__main__":
     scene = Project()
