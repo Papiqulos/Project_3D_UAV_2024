@@ -50,62 +50,67 @@ class Project(Scene3D):
     def printHelp(self):
         self.print("\
         R: Clear drones\n\
-        K: Show drones\n\
-        C: Show convex hulls\n\
-        F: Clear convex hulls\n\
-        A: Show AABB\n\
-        T: Show k-DOP\n\n")
+        S: Show drones\n\
+        C: Toggle convex hulls\n\
+        A: Toggle AABBs\n\
+        K: Toggle k-DOPs\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
         if symbol == Key.R:
             self.clear_drones()
 
-        if symbol == Key.K:
+        if symbol == Key.S:
             if self.meshes:
                 self.print("Drones already exist. Clear them first.")
                 return
             self.show_drones(self.num_of_drones)
         
         if symbol == Key.C:
-            if self.convex_hulls:
-                self.print("Convex hulls already exist. Clear them first.")
-                return
+
             if not self.meshes:
                 self.print("No drones to show convex hulls for.")
                 return
-            for mesh_name, mesh in self.meshes.items():
-                self.convex_hull(mesh, mesh_name)
             
-        if symbol == Key.F:
-            for mesh_name, mesh in self.meshes.items():
-                self.removeShape(f"convex_hull_{mesh_name}")
-            self.convex_hulls = {}
+            if self.meshes:
+                if self.convex_hulls:
+                    for mesh_name, _ in self.meshes.items():
+                        self.removeShape(f"convex_hull_{mesh_name}")
+                    self.convex_hulls = {}
+                else:
+                    for mesh_name, mesh in self.meshes.items():
+                        self.convex_hull(mesh, mesh_name)
         
         if symbol == Key.A:
-            if self.aabbs:
-                self.print("AABBs already exist. Clear them first.")
-                return
+            
             if not self.meshes:
                 self.print("No drones to show AABBs for.")
                 return
-            for mesh_name, mesh in self.meshes.items():
-                aabb = self.get_aabb(mesh)
-                self.addShape(aabb, f"aabb_{mesh_name}")
-                self.aabbs[f"aabb_{mesh_name}"] = aabb
-        
-        if symbol == Key.T:
-            if self.kdops:
-                self.print("k-DOPs already exist. Clear them first.")
-                return
+
+            if self.meshes:
+                if self.aabbs:
+                    for mesh_name, _ in self.meshes.items():
+                        self.removeShape(f"aabb_{mesh_name}")
+                    self.aabbs = {}
+                else:
+                    for mesh_name, mesh in self.meshes.items():
+                        self.get_aabb(mesh, mesh_name)
+                           
+        if symbol == Key.K:
+            
             if not self.meshes:
                 self.print("No drones to show k-DOPs for.")
                 return
-            for mesh_name, mesh in self.meshes.items():
-                kdop = self.get_kdop(mesh)
-                self.addShape(kdop, f"kdop_{mesh_name}")
-                self.kdops[f"kdop_{mesh_name}"] = kdop
-    
+
+            if self.meshes:
+                if self.kdops:
+                    for mesh_name, _ in self.meshes.items():
+                        self.removeShape(f"kdop_{mesh_name}")
+                    self.kdops = {}
+                else:
+                    for mesh_name, mesh in self.meshes.items():
+                        self.get_kdop(mesh, mesh_name)
+                           
     def reset_sliders(self):
         self.set_slider_value(0, 0.5)
     
@@ -126,24 +131,6 @@ class Project(Scene3D):
         self.aabbs = {}
         self.kdops = {}
     
-    def convex_hull(self, mesh:Mesh3D, mesh_name:str) -> None:
-        '''Construct the convex hull of the mesh.
-
-        Args:
-            mesh: The mesh
-            mesh_name: The name of the mesh
-        '''
-        o3d_mesh = o3d.geometry.TriangleMesh()
-        o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
-        o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
-        hull, _ = o3d_mesh.compute_convex_hull()
-
-        ch_mesh = Mesh3D()
-        ch_mesh._shape.vertices=o3d.utility.Vector3dVector(hull.vertices)
-        ch_mesh._shape.triangles=o3d.utility.Vector3iVector(hull.triangles)
-        self.addShape(ch_mesh, f"convex_hull_{mesh_name}")
-        self.convex_hulls[f"convex_hull_{mesh_name}"] = ch_mesh
-
     def landing_pad(self, size:float = 4.0) -> None:
         '''Construct an NxN landing pad.
         
@@ -218,6 +205,7 @@ class Project(Scene3D):
         rotation_matrix = get_rotation_matrix(center, dir)
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
         mesh.vertices = transformed_vertices
+        
         # Add the mesh to the scene
         self.addShape(mesh, f"drone_{drone_id}")
 
@@ -241,11 +229,34 @@ class Project(Scene3D):
 
         return mesh
 
-    def get_aabb(self, mesh: Mesh3D) -> Mesh3D:
+    def convex_hull(self, mesh:Mesh3D, mesh_name:str) -> None:
+        '''Construct the convex hull of the mesh.
+
+        Args:
+            mesh: The mesh
+            mesh_name: The name of the mesh
+        '''
+        o3d_mesh = o3d.geometry.TriangleMesh()
+        o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
+        o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
+        hull, _ = o3d_mesh.compute_convex_hull()
+
+        ch_mesh = Mesh3D()
+        ch_mesh._shape.vertices=o3d.utility.Vector3dVector(hull.vertices)
+        ch_mesh._shape.triangles=o3d.utility.Vector3iVector(hull.triangles)
+
+        # Add the convex hull to the scene
+        self.addShape(ch_mesh, f"convex_hull_{mesh_name}")
+
+        # Store the convex hull in the dictionary
+        self.convex_hulls[f"convex_hull_{mesh_name}"] = ch_mesh
+
+    def get_aabb(self, mesh: Mesh3D, mesh_name:str) -> None:
         '''Computes the axis-aligned bounding box (AABB) of a mesh.
         
         Args:
             mesh: The mesh
+            mesh_name: The name of the mesh
             
         Returns:
             aabb: The axis-aligned bounding box (AABB)
@@ -259,14 +270,19 @@ class Project(Scene3D):
         
         # Create the AxisAlignedBoundingBox object
         aabb = Cuboid3D(p1=min_coords, p2=max_coords, color=Color.RED, filled=False)
-        
-        return aabb
+
+        # Add the AABB to the scene
+        self.addShape(aabb, f"aabb_{mesh_name}")
+
+        # Store the AABB in the dictionary
+        self.aabbs[f"aabb_{mesh_name}"] = aabb
     
-    def get_kdop(self, mesh: Mesh3D, k:int = 6) -> Mesh3D:
+    def get_kdop(self, mesh: Mesh3D, mesh_name:str, k:int = 6) -> None:
         '''Computes the k-discrete oriented polytope (k-DOP) of a mesh.
         
         Args:
             mesh: The mesh
+            mesh_name: The name of the mesh
             k: The number of faces in the k-DOP
 
         Returns:
@@ -344,7 +360,11 @@ class Project(Scene3D):
         kdop.vertices = kdop_vertices
         kdop.triangles = kdop_faces
 
-        return kdop
+        # Add the k-DOP to the scene
+        self.addShape(kdop, f"kdop_{mesh_name}")
+
+        # Store the k-DOP in the dictionary
+        self.kdops[f"kdop_{mesh_name}"] = kdop
 
 if __name__ == "__main__":
     scene = Project()
