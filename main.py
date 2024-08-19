@@ -7,6 +7,7 @@ from vvrpywork.shapes import (
     Point3D, Line3D, Arrow3D, Sphere3D, Cuboid3D, Cuboid3DGeneralized,
     PointSet3D, LineSet3D, Mesh3D
 )
+import utility as U
 
 WIDTH, HEIGHT = 800, 600
 
@@ -49,8 +50,8 @@ class Project(Scene3D):
     # List of commands
     def printHelp(self):
         self.print("\
-        R: Clear drones\n\
-        S: Show drones\n\
+        R: Clear scene\n\
+        S: Show drones in random positions\n\
         C: Toggle convex hulls\n\
         A: Toggle AABBs\n\
         K: Toggle k-DOPs\n\n")
@@ -58,7 +59,7 @@ class Project(Scene3D):
     def on_key_press(self, symbol, modifiers):
 
         if symbol == Key.R:
-            self.clear_drones()
+            self.clear_scene()
 
         if symbol == Key.S:
             if self.meshes:
@@ -79,7 +80,7 @@ class Project(Scene3D):
                     self.convex_hulls = {}
                 else:
                     for mesh_name, mesh in self.meshes.items():
-                        self.convex_hull(mesh, mesh_name)
+                        self.show_convex_hull(mesh, mesh_name)
         
         if symbol == Key.A:
             
@@ -97,35 +98,36 @@ class Project(Scene3D):
                         self.get_aabb(mesh, mesh_name)
                            
         if symbol == Key.K:
-            
             if not self.meshes:
                 self.print("No drones to show k-DOPs for.")
                 return
 
             if self.meshes:
                 if self.kdops:
-                    for mesh_name, _ in self.meshes.items():
-                        self.removeShape(f"kdop_{mesh_name}")
+                    for kdop_name, _ in self.kdops.items():
+                        self.removeShape(kdop_name)
                     self.kdops = {}
                 else:
                     for mesh_name, mesh in self.meshes.items():
                         self.get_kdop(mesh, mesh_name)
                            
     def reset_sliders(self):
-        self.set_slider_value(0, 0.5)
+        self.set_slider_value(0, 0.1)
     
     def on_slider_change(self, slider_id, value):
 
         if slider_id == 0:
             self.num_of_drones = int(10 * value)
 
-    def clear_drones(self) -> None:
+    def clear_scene(self) -> None:
         '''Clear all the drones from the scene.'''
         for mesh_name, _ in self.meshes.items():
             self.removeShape(mesh_name)
             self.removeShape(f"convex_hull_{mesh_name}")
             self.removeShape(f"aabb_{mesh_name}")
-            self.removeShape(f"kdop_{mesh_name}")
+        
+        for kdop_name, _ in self.kdops.items():
+            self.removeShape(kdop_name)
         self.meshes = {}
         self.convex_hulls = {}
         self.aabbs = {}
@@ -205,7 +207,7 @@ class Project(Scene3D):
         rotation_matrix = get_rotation_matrix(center, dir)
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
         mesh.vertices = transformed_vertices
-        
+
         # Add the mesh to the scene
         self.addShape(mesh, f"drone_{drone_id}")
 
@@ -229,21 +231,59 @@ class Project(Scene3D):
 
         return mesh
 
-    def convex_hull(self, mesh:Mesh3D, mesh_name:str) -> None:
-        '''Construct the convex hull of the mesh.
+    def o3d_to_mesh(self, o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
+        '''Converts an Open3D mesh to a Mesh3D object.
+
+        Args:
+            o3d_mesh: The Open3D mesh
+
+        Returns:
+            mesh: The Mesh3D object
+        '''
+        mesh = Mesh3D()
+        mesh.vertices = np.array(o3d_mesh.vertices)
+        mesh.triangles = np.array(o3d_mesh.triangles)
+
+        return mesh
+    
+    def mesh_to_o3d(self, mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
+        '''Converts a Mesh3D object to an Open3D mesh.
+
+        Args:
+            mesh: The Mesh3D object
+
+        Returns:
+            o3d_mesh: The Open3D mesh
+        '''
+        o3d_mesh = o3d.geometry.TriangleMesh()
+        o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
+        o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
+
+        return o3d_mesh
+
+    def ch_o3d(self, mesh:Mesh3D) -> None:
+        '''Construct the convex hull of the mesh using Open3D.'''
+
+        # Convert the Mesh3D object to an Open3D mesh
+        o3d_mesh = self.mesh_to_o3d(mesh)
+
+        # Compute the convex hull using Open3D
+        hull, _ = o3d_mesh.compute_convex_hull()
+
+        # Convert the Open3D mesh to a Mesh3D object
+        ch_mesh = self.o3d_to_mesh(hull)
+
+        return ch_mesh
+
+    def show_convex_hull(self, mesh:Mesh3D, mesh_name:str) -> None:
+        '''Construct the convex hull of the mesh and put in the scene.
 
         Args:
             mesh: The mesh
             mesh_name: The name of the mesh
         '''
-        o3d_mesh = o3d.geometry.TriangleMesh()
-        o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
-        o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
-        hull, _ = o3d_mesh.compute_convex_hull()
-
-        ch_mesh = Mesh3D()
-        ch_mesh._shape.vertices=o3d.utility.Vector3dVector(hull.vertices)
-        ch_mesh._shape.triangles=o3d.utility.Vector3iVector(hull.triangles)
+        # Compute the convex hull using Open3D
+        ch_mesh = self.ch_o3d(mesh)
 
         # Add the convex hull to the scene
         self.addShape(ch_mesh, f"convex_hull_{mesh_name}")
@@ -256,10 +296,7 @@ class Project(Scene3D):
         
         Args:
             mesh: The mesh
-            mesh_name: The name of the mesh
-            
-        Returns:
-            aabb: The axis-aligned bounding box (AABB)
+            mesh_name: The name of the mesh  
         '''
         
         vertices = np.array(mesh.vertices)
@@ -277,94 +314,41 @@ class Project(Scene3D):
         # Store the AABB in the dictionary
         self.aabbs[f"aabb_{mesh_name}"] = aabb
     
-    def get_kdop(self, mesh: Mesh3D, mesh_name:str, k:int = 6) -> None:
+    def get_kdop(self, mesh: Mesh3D, mesh_name:str) -> None:
         '''Computes the k-discrete oriented polytope (k-DOP) of a mesh.
         
         Args:
             mesh: The mesh
             mesh_name: The name of the mesh
-            k: The number of faces in the k-DOP
-
-        Returns:
-            kdop: The k-DOP
         '''
 
-        vertices = np.array(mesh.vertices)
+        # 14 directions for the 14-DOP
+        directions = np.array([
+            [1, 0, 0], [-1, 0, 0],  # ±X-axis
+            [0, 1, 0], [0, -1, 0],  # ±Y-axis
+            [0, 0, 1], [0, 0, -1],  # ±Z-axis
+            [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0],  # XY-plane diagonals
+            [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1],  # XZ-plane diagonals
+        ])
 
-        def define_k_directions(k=18):
-            # Define K directions (these are example directions for 18-DOP)
-            directions = [
-                np.array([1, 0, 0]), np.array([-1, 0, 0]),  # X axis
-                np.array([0, 1, 0]), np.array([0, -1, 0]),  # Y axis
-                np.array([0, 0, 1]), np.array([0, 0, -1]),  # Z axis
-                np.array([1, 1, 0]), np.array([-1, -1, 0]), # Diagonals in XY plane
-                np.array([1, -1, 0]), np.array([-1, 1, 0]),
-                np.array([1, 0, 1]), np.array([-1, 0, -1]), # Diagonals in XZ plane
-                np.array([0, 1, 1]), np.array([0, -1, -1]), # Diagonals in YZ plane
-                np.array([1, 1, 1]), np.array([-1, -1, -1]), # Main diagonals
-                np.array([1, -1, 1]), np.array([-1, 1, -1]),
-                np.array([1, 1, -1]), np.array([-1, -1, 1])
-            ]
-            return np.array(directions[:k])  # Return the first K directions
+        mesh_center = np.mean(mesh.vertices, axis=0)
 
-        def compute_kdop_mesh(vertices, directions):
-            # Initialize min and max projections for each direction
-            min_projections = np.full(directions.shape[0], np.inf)
-            max_projections = np.full(directions.shape[0], -np.inf)
-            
-            # Compute projections along each direction
-            for vertex in vertices:
-                projections = np.dot(directions, vertex)
-                min_projections = np.minimum(min_projections, projections)
-                max_projections = np.maximum(max_projections, projections)
+        for i, direction in enumerate(directions):
+            if i <= 6: 
+                continue
+            # Create a plane mesh with specified orientation and position
+            plane, _, _ = U.generate_plane(direction, mesh_center)
+            plane = self.o3d_to_mesh(plane)
+            plane.color = Color.GREEN
 
-            # Build the K-DOP mesh vertices
-            kdop_vertices = []
-            for i, direction in enumerate(directions):
-                kdop_vertices.append(min_projections[i] * direction)
-                kdop_vertices.append(max_projections[i] * direction)
+            # Add the plane to the scene
+            self.addShape(plane, f"kdop{i}_{mesh_name}")
 
-            # Here we construct a very simple polyhedral mesh assuming the number of vertices
-            # For simplicity, let's assume we're only using 6 directions (e.g., axis-aligned bounding box)
-            # A more complex approach would be needed for general K-DOPs
-            if len(directions) == 6:
-                # Define vertices manually (simple case for AABB, extend for K-DOP)
-                kdop_vertices = np.array([
-                    [min_projections[0], min_projections[2], min_projections[4]],
-                    [min_projections[0], min_projections[2], max_projections[4]],
-                    [min_projections[0], max_projections[2], min_projections[4]],
-                    [min_projections[0], max_projections[2], max_projections[4]],
-                    [max_projections[0], min_projections[2], min_projections[4]],
-                    [max_projections[0], min_projections[2], max_projections[4]],
-                    [max_projections[0], max_projections[2], min_projections[4]],
-                    [max_projections[0], max_projections[2], max_projections[4]],
-                ])
+            # Store the k-DOP in the dictionary
+            self.kdops[f"kdop{i}_{mesh_name}"] = plane
 
-                # Define faces (triangles) manually
-                kdop_faces = np.array([
-                    [0, 1, 3], [0, 3, 2],  # Front face
-                    [4, 5, 7], [4, 7, 6],  # Back face
-                    [0, 1, 5], [0, 5, 4],  # Bottom face
-                    [2, 3, 7], [2, 7, 6],  # Top face
-                    [0, 2, 6], [0, 6, 4],  # Left face
-                    [1, 3, 7], [1, 7, 5]   # Right face
-                ])
-                
-                return kdop_vertices, kdop_faces
-            else:
-                raise NotImplementedError("K-DOP mesh construction for more than 6 directions is not implemented.")
 
-        directions = define_k_directions(k)
-        kdop_vertices, kdop_faces = compute_kdop_mesh(vertices, directions)
-        kdop = Mesh3D(color=Color.CYAN)
-        kdop.vertices = kdop_vertices
-        kdop.triangles = kdop_faces
 
-        # Add the k-DOP to the scene
-        self.addShape(kdop, f"kdop_{mesh_name}")
-
-        # Store the k-DOP in the dictionary
-        self.kdops[f"kdop_{mesh_name}"] = kdop
 
 if __name__ == "__main__":
     scene = Project()
