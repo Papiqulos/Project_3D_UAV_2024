@@ -1,7 +1,10 @@
 import numpy as np
 import open3d as o3d
 import numpy as np
-
+from vvrpywork.shapes import (
+    Point3D, Line3D, Arrow3D, Sphere3D, Cuboid3D, Cuboid3DGeneralized,
+    PointSet3D, LineSet3D, Mesh3D
+)
 
 
 # Contruct a default plane pointing in the upward y direction 
@@ -108,3 +111,33 @@ def compute_euler_angles(direction):
     gamma = 0.0
     
     return np.array([alpha, beta, gamma])
+
+def o3d_to_mesh(o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
+        '''Converts an Open3D mesh to a Mesh3D object.
+
+        Args:
+            o3d_mesh: The Open3D mesh
+
+        Returns:
+            mesh: The Mesh3D object
+        '''
+        mesh = Mesh3D()
+        mesh.vertices = np.array(o3d_mesh.vertices)
+        mesh.triangles = np.array(o3d_mesh.triangles)
+
+        return mesh
+    
+def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
+    '''Converts a Mesh3D object to an Open3D mesh.
+
+    Args:
+        mesh: The Mesh3D object
+
+    Returns:
+        o3d_mesh: The Open3D mesh
+    '''
+    o3d_mesh = o3d.geometry.TriangleMesh()
+    o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
+    o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
+
+    return o3d_mesh
