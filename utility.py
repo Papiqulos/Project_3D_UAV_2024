@@ -5,15 +5,23 @@ from vvrpywork.shapes import (
     Point3D, Line3D, Arrow3D, Sphere3D, Cuboid3D, Cuboid3DGeneralized,
     PointSet3D, LineSet3D, Mesh3D
 )
+from vvrpywork.constants import Key, Mouse, Color
+from itertools import combinations
 
+
+def rSubset(arr, r):
+    # return list of all subsets of length r
+    # to deal with duplicate subsets use
+    # set(list(combinations(arr, r)))
+    return list(combinations(arr, r))
 
 # Contruct a default plane pointing in the upward y direction 
-def default_plane():
+def default_plane(size=1.0):
     # Define vertices of the plane (two triangles)
-    vertices = np.array([[-1.0,  0.0,  -1.0],  # Vertex 0
-                        [ 1.0,  0.0,  -1.0],  # Vertex 1
-                        [ 1.0,  0.0,   1.0],  # Vertex 2
-                        [-1.0,  0.0,   1.0]]) # Vertex 3
+    vertices = np.array([[-size,  0.0,  -size],  # Vertex 0
+                        [ size,  0.0,  -size],  # Vertex 1
+                        [ size,  0.0,   size],  # Vertex 2
+                        [-size,  0.0,   size]]) # Vertex 3
 
     # Define faces of the plane (two triangles)
     faces = np.array([[0, 1, 2],  # Triangle 1 (vertices 0-1-2)
@@ -28,8 +36,8 @@ def default_plane():
 
     return plane_mesh
 
-# Generate a plane with given position and orientation  
-def generate_plane(direction, translation):
+# Generate a plane with given position and direction
+def generate_plane(direction, translation, size=1.0):
     """
     Generate a plane mesh with specified orientation and position.
 
@@ -43,7 +51,7 @@ def generate_plane(direction, translation):
     - transformed_dir: Transformed direction vector of the plane after applying rotation.
     """
     # Create a default plane
-    plane = default_plane()
+    plane = default_plane(size)
 
     # Initial center and direction of the plane
     center = np.array([0, 0, 0])
@@ -51,12 +59,22 @@ def generate_plane(direction, translation):
 
     # Get vertices of the default plane
     vertices = np.asarray(plane.vertices)
+    direction = np.array(direction)
 
-    # Compute Euler angles from direction vector
-    euler_angles = compute_euler_angles(direction)
+    # Compute rotation matrix so that dir aligns with direction
 
-    # Convert Euler angles to rotation matrix
-    rotation_matrix = euler_angles_to_rotation_matrix(euler_angles)
+    # Check if the direction is along the  negative y-axis
+    if np.all(direction == np.array([0, -1, 0])):
+        rotation_matrix = np.eye(3)
+    # Check if the direction is along the positive y-axis
+    elif not (direction==dir).all():
+        dir = dir / np.linalg.norm(dir)
+        direction = direction / np.linalg.norm(direction)
+        axis = np.cross(dir, direction)
+        angle = np.arccos(np.dot(dir, direction))
+        rotation_matrix = rotation_matrix_from_axis_angle(axis, angle)
+    else:
+        rotation_matrix = np.eye(3)
 
     # Apply rigid transformation to vertices
     transformed_vertices = vertices @ rotation_matrix.T + translation 
@@ -68,7 +86,75 @@ def generate_plane(direction, translation):
     # Transform the direction vector of the plane
     transformed_dir = dir @ rotation_matrix.T
 
+    plane = o3d_to_mesh(plane)
+
     return plane, transformed_center, transformed_dir
+
+def get_convex_hull_of_pcd(points):
+    '''Creates a triangle mesh from a set of points by creating the convex hull of the points.'''
+    # Create Open3D PointCloud object
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    hull, _ = pcd.compute_convex_hull()
+    hull = o3d_to_mesh(hull)
+    
+    return hull
+
+def check_point_in_cuboid(point, cuboid: Cuboid3D) -> bool:
+    """
+    Check if a point is inside a cuboid.
+
+    Parameters:
+    - point: Point [x, y, z] to check.
+    - cuboid: Cuboid3D object representing the cuboid.
+
+    Returns:
+    - True if the point is inside the cuboid, False otherwise.
+    """
+    # Check if the point is inside the cuboid
+    if (cuboid.x_min <= point[0] <= cuboid.x_max and
+        cuboid.y_min <= point[1] <= cuboid.y_max and
+        cuboid.z_min<= point[2] <= cuboid.z_max):
+        return True
+    else:
+        return False
+
+def intersection_of_three_planes(plane1, plane2, plane3):
+    # Extract coefficients from the plane equations
+    A = np.array([plane1[:3], plane2[:3], plane3[:3]])
+    b = np.array([-plane1[3], -plane2[3], -plane3[3]])
+    
+    # Check if the determinant of A is non-zero
+    if np.linalg.det(A) == 0:
+        return
+    
+    # Solve the system of equations
+    intersection_point = np.linalg.solve(A, b)
+    
+    return intersection_point
+
+def rotation_matrix_from_axis_angle(axis, angle):
+    # Normalize the rotation axis
+    axis = axis / np.linalg.norm(axis)
+    
+    # Components of the axis
+    x, y, z = axis
+    
+    # Skew-symmetric matrix for the axis
+    K = np.array([
+        [0, -z, y],
+        [z, 0, -x],
+        [-y, x, 0]
+    ])
+    
+    # Identity matrix
+    I = np.eye(3)
+    
+    # Rodrigues' rotation formula
+    R = I + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
+    
+    return R
 
 def euler_angles_to_rotation_matrix(euler_angles):
     """
@@ -141,3 +227,45 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
     o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
 
     return o3d_mesh
+
+def find_edge_vertices_of_mesh(mesh:Mesh3D) -> tuple:
+        '''Finds the vertices of the mesh that are at the edges of the mesh.
+
+        Args:
+            mesh: The Mesh3D object
+
+        Returns:
+            max_x: The vertex of the mesh with the maximum x-coordinate
+            max_y: The vertex of the mesh with the maximum y-coordinate
+            max_z: The vertex of the mesh with the maximum z-coordinate
+            min_x: The vertex of the mesh with the minimum x-coordinate
+            min_y: The vertex of the mesh with the minimum y-coordinate
+            min_z: The vertex of the mesh with the minimum z-coordinate
+        '''
+
+        # Find the vertex of the mesh with the maximum x-coordinate
+        max_x_idx = np.argmax(mesh.vertices[:, 0])
+        max_x = mesh.vertices[max_x_idx]
+
+        # Find the vertex of the mesh with the maximum y-coordinate
+        max_y_idx = np.argmax(mesh.vertices[:, 1])
+        max_y = mesh.vertices[max_y_idx]
+
+        # Find the vertex of the mesh with the maximum z-coordinate
+        max_z_idx = np.argmax(mesh.vertices[:, 2])
+        max_z = mesh.vertices[max_z_idx]
+
+        # Find the vertex of the mesh with the minimum x-coordinate
+        min_x_idx = np.argmin(mesh.vertices[:, 0])
+        min_x = mesh.vertices[min_x_idx]
+
+        # Find the vertex of the mesh with the minimum y-coordinate
+        min_y_idx = np.argmin(mesh.vertices[:, 1])
+        min_y = mesh.vertices[min_y_idx]
+
+        # Find the vertex of the mesh with the minimum z-coordinate
+        min_z_idx = np.argmin(mesh.vertices[:, 2])
+        min_z = mesh.vertices[min_z_idx]
+
+
+        return [max_x, max_y, max_z, min_x, min_y, min_z]

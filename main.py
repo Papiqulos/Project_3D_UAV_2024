@@ -1,14 +1,14 @@
-import open3d as o3d
 import numpy as np
 import random
-from vvrpywork.constants import Key, Mouse, Color
-from vvrpywork.scene import Scene3D, get_rotation_matrix, world_space
+from vvrpywork.constants import Key, Color
+from vvrpywork.scene import Scene3D, get_rotation_matrix
 from vvrpywork.shapes import (
-    Point3D, Line3D, Arrow3D, Sphere3D, Cuboid3D, Cuboid3DGeneralized,
-    PointSet3D, LineSet3D, Mesh3D
+    Point3D, Sphere3D, Cuboid3D,
+    Mesh3D, Label3D
 )
 import heapq
 import utility as U
+
 
 WIDTH, HEIGHT = 1800, 900
 
@@ -116,7 +116,7 @@ class Project(Scene3D):
                     self.kdops = {}
                 else:
                     for mesh_name, mesh in self.meshes.items():
-                        self.get_kdop(mesh, mesh_name)
+                        self.get_14dop(mesh, mesh_name)
                            
     def reset_sliders(self):
         self.set_slider_value(0, 0.1)
@@ -132,9 +132,8 @@ class Project(Scene3D):
             self.removeShape(mesh_name)
             self.removeShape(f"convex_hull_{mesh_name}")
             self.removeShape(f"aabb_{mesh_name}")
+            self.removeShape(f"14dop_{mesh_name}")
         
-        for kdop_name, _ in self.kdops.items():
-            self.removeShape(kdop_name)
         self.meshes = {}
         self.convex_hulls = {}
         self.aabbs = {}
@@ -277,8 +276,9 @@ class Project(Scene3D):
             mesh_name: The name of the mesh  
         '''
         
-        # Create the AxisAlignedBoundingBox object
-        aabb = self.get_aabb(mesh, mesh_name)
+        # Create the AxisAlignedBoundingBox object if it does not exist
+        if f"aabb_{mesh_name}" not in self.aabbs:
+            aabb = self.get_aabb(mesh, mesh_name)
 
         # Add the AABB to the scene
         self.addShape(aabb, f"aabb_{mesh_name}")
@@ -298,68 +298,169 @@ class Project(Scene3D):
 
         # Convert the point to Point3D object
         point = Point3D(np.array(point), color=Color.BLACK, size=3)
-        self.addShape(point, f"point{random.randint(0, 1000)}")
+        # self.addShape(point, f"point{random.randint(0, 1000)}")
 
         nearest_node = KdNode.nearestNeighbor(point, kd_tree)
         nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
 
         return nearest_point
 
-    def get_all_cuboid_points(self, cuboid:Cuboid3D) -> np.ndarray:
-
-        points = []
+    def get_all_cuboid_points(self, cuboid: Cuboid3D):
+        '''Get all the corner points of the cuboid.'''
         
-        return np.array(points)
+        # Top max and bottom min points of the cuboid
+        max_point = np.array([cuboid.x_max, cuboid.y_max, cuboid.z_max])
+        min_point = np.array([cuboid.x_min, cuboid.y_min, cuboid.z_min])
+        
+        # Cuboid diamensions
+        x_length = max_point[0] - min_point[0]
+        z_length = max_point[2] - min_point[2]
+        
+        # Get all the corners of the cuboid
+        bottom_corners = [Point3D([min_point[0], min_point[1], min_point[2]], color=Color.GREEN), Point3D([min_point[0] +x_length, min_point[1], min_point[2]], color=Color.GREEN), Point3D([min_point[0] +x_length, min_point[1], min_point[2]+z_length], color=Color.GREEN), Point3D([min_point[0], min_point[1], min_point[2]+z_length], color=Color.GREEN)]
+        top_corners = [Point3D([max_point[0], max_point[1], max_point[2]], color=Color.RED), Point3D([max_point[0] - x_length, max_point[1], max_point[2]], color=Color.YELLOW), Point3D([max_point[0] -x_length, max_point[1], max_point[2]-z_length], color=Color.MAGENTA), Point3D([max_point[0], max_point[1], max_point[2]-z_length], color=Color.BLACK)]
+        
+        # Visualize the corners
+        # for i in range(4):
+        #     randomint = np.random.randint(0, 10000)
+        #     self.addShape(bottom_corners[i], f"bottom_corners_{randomint}")
+        #     self.addShape(top_corners[i], f"top_corners_{randomint}")
+        
+        # Combine the bottom and top corners
+        corners = bottom_corners + top_corners
+        return corners
 
-    def get_kdop(self, mesh: Mesh3D, mesh_name:str) -> None:
-        '''Computes the k-discrete oriented polytope (k-DOP) of a mesh.
+    def get_14dop(self, mesh: Mesh3D, mesh_name:str) -> None:
+        '''Computes the 14-discrete oriented polytope (k-DOP) of a mesh.
         
         Args:
             mesh: The mesh
             mesh_name: The name of the mesh
         '''
 
+        # Get the edge vertices of the mesh
+        edge_vertices = U.find_edge_vertices_of_mesh(mesh)
+        
         # 14 directions for the 14-DOP
-        directions = np.array([
-            [1, 0, 0], [-1, 0, 0],  # ±X-axis
-            [0, 1, 0], [0, -1, 0],  # ±Y-axis
-            [0, 0, 1], [0, 0, -1],  # ±Z-axis
-            [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0],  # XY-plane diagonals
-            [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1],  # XZ-plane diagonals
+        diag_directions = np.array([
+            [1, 1, 1],        
+            [-1, 1, 1],
+            [-1, 1, -1],
+            [1, 1, -1],
+
+            [-1, -1, -1],
+            [1, -1, -1],
+            [1, -1, 1],
+            [-1, -1, 1],
+            
         ])
 
+        edge_directions = np.array([
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+
+                [-1, 0, 0],
+                [0, -1, 0],
+                [0, 0, -1]
+            
+        ])
+
+        # Get the AABB of the mesh (Compute it if it does not exist)
         if not self.aabbs:
             for mesh_name, mesh in self.meshes.items():
                 self.get_aabb(mesh, mesh_name)
-        for aabb in self.aabbs.values():
+        aabb = self.aabbs[f"aabb_{mesh_name}"]
 
-            # points = self.get_all_cuboid_points(aabb)
-            # for point in points:
-            #     near = self.get_nearest_point(point, mesh)
-            #     self.addShape(near, f"nearest_point{random.randint(0, 1000)}")
+        # Get the 8 corner points of the AABB
+        aabb_points = self.get_all_cuboid_points(aabb)
 
-            point1 = np.array([aabb.x_min, aabb.y_min, aabb.z_min])
-            point2 = np.array([aabb.x_max, aabb.y_max, aabb.z_max])
+        # Dictionary to store the Mesh3D objects of the intersecting planes and their parameters
+        intersecting_planes_dic = {}
 
-            near1 = self.get_nearest_point(point1, mesh)
-            near2 = self.get_nearest_point(point2, mesh)
+        # Diagonal planes
+        for i, point in enumerate(aabb_points):
+            
+            # Convert the point to a numpy array
+            point = np.array([point.x, point.y, point.z])
 
-            self.addShape(near1, f"nearest_point{random.randint(0, 1000)}")
-            self.addShape(near2, f"nearest_point{random.randint(0, 1000)}")
+            # Get the nearest point on the mesh for each of the 8 corner points of the AABB
+            near = self.get_nearest_point(point, mesh)
 
-            # Construct a plane whose normal is the vector from the point to the nearest point on the mesh
-            near1 = np.array([near1.x, near1.y, near1.z])
-            near2 = np.array([near2.x, near2.y, near2.z])
+            # Visualize the nearest point
+            # self.addShape(near, f"nearest_point_{mesh_name}_{i}")
 
-            normal1 = near1 - point1
-            normal2 = near2 - point2
+            # Generate the plane from the diagonal direction and the nearest point
+            plane, plane_pos, plane_dir = U.generate_plane(diag_directions[i], [near.x, near.y, near.z], 2)
 
-            plane1, _, _ = U.generate_plane([1,0,0], near1)
+            # Get the plane parameters
+            plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
+            # Visualize the plane
+            # self.addShape(plane, f"plane_{mesh_name}_{i}")
 
-            plane1 = U.o3d_to_mesh(plane1)
+            # Store the plane 
+            intersecting_planes_dic[plane] = plane_params
 
-            self.addShape(plane1, f"plane{random.randint(0, 1000)}")
-            # self.addShape(plane2, f"plane{random.randint(0, 1000)}")
+        # Edge planes
+        for i, edge_vertex in enumerate(edge_vertices):
+
+            # Visualize the edge vertex
+            # self.addShape(Point3D(edge_vertex, color=Color.ORANGE, size=3), f"edge_vertex_{mesh_name}_{i}")
+
+            # Generate the plane from the edge direction and the edge vertex
+            plane, plane_pos, plane_dir = U.generate_plane(edge_directions[i], edge_vertex, 2)
+
+            # Get the plane parameters
+            plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
+            # Visualize the plane
+            # self.addShape(plane, f"plane_{mesh_name}_{i+8}")
+
+            # Store the plane 
+            intersecting_planes_dic[plane] = plane_params
+
+
+        # Get a list of the planes from the dictionary
+        intersecting_planes_mesh = list(intersecting_planes_dic.keys())
+
+        # Get all possible combinations of 3 planes
+        combinations = U.rSubset(intersecting_planes_mesh, 3)
+        print(len(combinations))
+        
+        # List to store the intersection points
+        intersection_points = []
+
+        # Find all the intersection points of the planes
+        for i, comb in enumerate(combinations):
+
+            # Visualize the planes
+            # self.addShape(comb[0], f"plane_{mesh_name}_{i}")
+            # self.addShape(comb[1], f"plane_{mesh_name}_{i+1}")
+            # self.addShape(comb[2], f"plane_{mesh_name}_{i+2}")
+
+            # Find the intersection point of the 3 planes
+            intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
+                                                                intersecting_planes_dic[comb[1]], 
+                                                                intersecting_planes_dic[comb[2]])
+
+            # If the intersection point is found and it is inside the AABB, store it and visualize it
+            if intersection_point is not None:
+                if U.check_point_in_cuboid(intersection_point, aabb):
+                    print(intersection_point)
+                    intersection_points.append(intersection_point)
+
+                    # Convert the intersection point to a Point3D object
+                    intersection_point = Point3D(intersection_point, color=Color.ORANGE, size=1)
+                    self.addShape(Point3D(intersection_point, color=Color.ORANGE, size=1), f"intersection_point_{mesh_name}_{i}")
+                    self.addShape(Label3D(intersection_point), f"combination_{i}")
+                        
+
+        # hull = U.get_convex_hull_of_pcd(intersection_points)
+        # self.addShape(hull, f"14dop_{mesh_name}")
+        # self.kdops[f"14dop_{mesh_name}"] = hull
+
+
+
+
 
 
 
