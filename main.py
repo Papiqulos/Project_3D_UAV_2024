@@ -3,9 +3,10 @@ import random
 from vvrpywork.constants import Key, Color
 from vvrpywork.scene import Scene3D, get_rotation_matrix
 from vvrpywork.shapes import (
-    Point3D, Triangle3D, Line3D, Sphere3D, Cuboid3D,
+    Point3D, Sphere3D, Cuboid3D,
     Mesh3D, Label3D
 )
+from scipy.spatial import ConvexHull
 import heapq
 import utility as U
 
@@ -30,8 +31,7 @@ class Project(Scene3D):
 
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Project", output=True, n_sliders=1)
-        tri = Triangle3D([0, 0, 0], [1, 0, 0], [0, 1, 0], color=Color.RED)
-        self.addShape(tri, "triangle")
+        
         self.printHelp()
         self.reset_sliders()
 
@@ -349,14 +349,20 @@ class Project(Scene3D):
             mesh: The mesh
             mesh_name: The name of the mesh
         '''
-        
-        # Get the edge vertices of the mesh
-        edge_vertices = U.find_edge_vertices_of_mesh(mesh)
+        vertices = np.array(mesh.vertices)
         
         # 14 directions for the 14-DOP
-        diag_directions = np.array([
-            [1, 1, 1],        
-            [-1, 1, 1],
+        directions = np.array([
+            [1, 0, 0],  # x-axis
+            [0, 1, 0],  # y-axis
+            [0, 0, 1],  # z-axis
+
+            [-1, 0, 0], # -x-axis
+            [0, -1, 0], # -y-axis
+            [0, 0, -1], # -z-axis
+
+            [1, 1, 1],  # diagonals    
+            [-1, 1, 1], 
             [-1, 1, -1],
             [1, 1, -1],
 
@@ -366,18 +372,13 @@ class Project(Scene3D):
             [-1, -1, 1],
             
         ])
-
-        edge_directions = np.array([
-                [1, 0, 0],
-                [0, 1, 0],
-                [0, 0, 1],
-
-                [-1, 0, 0],
-                [0, -1, 0],
-                [0, 0, -1]
-            
-        ])
-
+        planes = []
+        for dir in directions:
+            if 0 in dir:
+                planes.append((dir, 1))
+            else:
+                planes.append((dir, np.sqrt(2)))
+        # print(planes)
         # Get the AABB of the mesh (Compute it if it does not exist)
         if not self.aabbs:
             for mesh_name, mesh in self.meshes.items():
@@ -391,48 +392,44 @@ class Project(Scene3D):
         intersecting_planes_dic = {}
 
         # Diagonal planes
-        for i, point in enumerate(aabb_points):
+        dot_products = np.dot(vertices, directions.T)
+        
+        max_indices = np.argmax(dot_products, axis=0)
+        min_indices = np.argmin(dot_products, axis=0)
+
+        max_vertices = vertices[max_indices]
+        min_vertices = vertices[min_indices]
+
+        for i, dir in enumerate(directions[6:]):
             
-            # Convert the point to a numpy array
-            point = np.array([point.x, point.y, point.z])
-
-            # Get the nearest point on the mesh for each of the 8 corner points of the AABB
-            near = self.get_nearest_point(point, mesh)
-
-            # Visualize the nearest point
-            # self.addShape(near, f"nearest_point_{mesh_name}_{i}")
-
-            # Generate the plane from the diagonal direction and the nearest point
-            plane, plane_pos, plane_dir = U.generate_plane(diag_directions[i], [near.x, near.y, near.z], 3)
+            # Generate the plane from the edge direction and the edge vertex
+            plane, plane_pos, plane_dir = U.generate_plane(dir, max_vertices[i], 3)
 
             # Get the plane parameters
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
+
+            # Store the plane 
+            intersecting_planes_dic[plane] = plane_params
+
             # Visualize the plane
             # self.addShape(plane, f"plane_{mesh_name}_{i}")
 
-            # Store the plane 
-            intersecting_planes_dic[plane] = plane_params
-
-        # Edge planes
-        for i, edge_vertex in enumerate(edge_vertices):
-
-            # Visualize the edge vertex
-            # self.addShape(Point3D(edge_vertex, color=Color.ORANGE, size=3), f"edge_vertex_{mesh_name}_{i}")
-
             # Generate the plane from the edge direction and the edge vertex
-            plane, plane_pos, plane_dir = U.generate_plane(edge_directions[i], edge_vertex, 3)
+            plane, plane_pos, plane_dir = U.generate_plane(dir, min_vertices[i], 3)
 
             # Get the plane parameters
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
-            # Visualize the plane
-            # self.addShape(plane, f"plane_{mesh_name}_{i+8}")
 
             # Store the plane 
             intersecting_planes_dic[plane] = plane_params
+
+            # Visualize the plane
+            # self.addShape(plane, f"plane_{mesh_name}_{i+14}")
 
 
         # Get a list of the planes from the dictionary
         intersecting_planes_mesh = list(intersecting_planes_dic.keys())
+        # print(len(intersecting_planes_mesh))
 
         # Get all possible combinations of 3 planes
         combinations = U.rSubset(intersecting_planes_mesh, 3)
@@ -443,42 +440,25 @@ class Project(Scene3D):
 
         # Find all the intersection points of the planes
         for i, comb in enumerate(combinations):
-            if True:
-                # Visualize the planes
-                # self.addShape(comb[0], f"plane_{mesh_name}_{i}")
-                # self.misc_geometries[f"plane_{mesh_name}_{i}"] = comb[0]
-                # self.addShape(comb[1], f"plane_{mesh_name}_{i+1}")
-                # self.misc_geometries[f"plane_{mesh_name}_{i+1}"] = comb[1]
-                # self.addShape(comb[2], f"plane_{mesh_name}_{i+2}")
-                # self.misc_geometries[f"plane_{mesh_name}_{i+2}"] = comb[2]
+            
 
-                # Find the intersection point of the 3 planes
-                intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
-                                                                    intersecting_planes_dic[comb[1]], 
-                                                                    intersecting_planes_dic[comb[2]])
+            # Find the intersection point of the 3 planes
+            intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
+                                                                intersecting_planes_dic[comb[1]], 
+                                                                intersecting_planes_dic[comb[2]])
 
-                # If the intersection point is found and it is inside the AABB, store it and visualize it
-                if intersection_point is not None:
-                    if U.check_point_in_cuboid(intersection_point, aabb):
-                        # print(intersection_point)
-                        num_of_inter += 1
-                        intersection_points.append(intersection_point)
-
-                        # Convert the intersection point to a Point3D object and visualize it
-                        intersection_point = Point3D(intersection_point, color=Color.ORANGE, size=1)
-                        intersection_point_id = f"{mesh_name}_inter_point_{num_of_inter}_comb{i}"
-                        self.addShape(Point3D(intersection_point, color=Color.ORANGE, size=1), intersection_point_id)
-                        self.misc_geometries[intersection_point_id] = intersection_point
-
-                        # Testing
-                        # comb_label = Label3D(intersection_point, f"combination_{i}", color=Color.BLACK)
-                        # self.addShape(comb_label, f"combination_{i}")
-                        # self.misc_geometries[f"combination_{i}"] = comb_label
+            if intersection_point is not None:
+                intersection_points.append(intersection_point)
         
-        
-        hull = U.get_convex_hull_of_pcd(intersection_points)
-        self.addShape(hull, f"14dop_{mesh_name}")
-        self.kdops[f"14dop_{mesh_name}"] = hull
+        # print(len(intersection_points))
+
+        filtered_points = np.array([p for p in intersection_points if U.is_point_inside_polytope(p, planes)])
+        # print(filtered_points)
+
+
+        # hull = U.get_convex_hull_of_pcd(filtered_points)
+        # self.addShape(hull, f"14dop_{mesh_name}")
+        # self.kdops[f"14dop_{mesh_name}"] = hull
 
 
 

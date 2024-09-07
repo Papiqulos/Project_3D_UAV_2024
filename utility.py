@@ -2,17 +2,13 @@ import numpy as np
 import open3d as o3d
 import numpy as np
 from vvrpywork.shapes import (
-    Point3D, Line3D, Arrow3D, Sphere3D, Cuboid3D, Cuboid3DGeneralized,
-    PointSet3D, LineSet3D, Mesh3D
+    Cuboid3D, Mesh3D
 )
-from vvrpywork.constants import Key, Mouse, Color
 from itertools import combinations
 
 
 def rSubset(arr, r):
-    # return list of all subsets of length r
-    # to deal with duplicate subsets use
-    # set(list(combinations(arr, r)))
+    '''return list of all subsets of length r''' 
     return list(combinations(arr, r))
 
 # Contruct a default plane pointing in the upward y direction 
@@ -232,6 +228,7 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
+# Not used
 def find_edge_vertices_of_mesh(mesh:Mesh3D) -> tuple:
     '''Finds the vertices of the mesh that are at the edges of the mesh.
 
@@ -284,9 +281,17 @@ def plane_equation_from_pos_dir(plane_pos, plane_dir):
 
     return plane_params
 
+# Not used
 def check_if_neighbor(corner_dir, face_dir):
     for i in range(3):
         if face_dir[i] != 0:
             if corner_dir[i]==face_dir[i]:
                 return True
     return False
+
+# Not working as intended
+def is_point_inside_polytope(point, planes):
+    for normal, distance in planes:
+        if np.dot(normal, point) + distance > 0:
+            return False
+    return True
