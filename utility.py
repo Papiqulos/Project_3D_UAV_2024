@@ -134,6 +134,10 @@ def intersection_of_three_planes(plane1, plane2, plane3):
     
     return intersection_point
 
+def remove_duplicates(points):
+    '''Removes duplicate points from a set of points.'''
+    return np.unique(points, axis=0)
+
 def rotation_matrix_from_axis_angle(axis, angle):
     # Normalize the rotation axis
     axis = axis / np.linalg.norm(axis)
@@ -229,43 +233,60 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
     return o3d_mesh
 
 def find_edge_vertices_of_mesh(mesh:Mesh3D) -> tuple:
-        '''Finds the vertices of the mesh that are at the edges of the mesh.
+    '''Finds the vertices of the mesh that are at the edges of the mesh.
 
-        Args:
-            mesh: The Mesh3D object
+    Args:
+        mesh: The Mesh3D object
 
-        Returns:
-            max_x: The vertex of the mesh with the maximum x-coordinate
-            max_y: The vertex of the mesh with the maximum y-coordinate
-            max_z: The vertex of the mesh with the maximum z-coordinate
-            min_x: The vertex of the mesh with the minimum x-coordinate
-            min_y: The vertex of the mesh with the minimum y-coordinate
-            min_z: The vertex of the mesh with the minimum z-coordinate
-        '''
+    Returns:
+        max_x: The vertex of the mesh with the maximum x-coordinate
+        max_y: The vertex of the mesh with the maximum y-coordinate
+        max_z: The vertex of the mesh with the maximum z-coordinate
+        min_x: The vertex of the mesh with the minimum x-coordinate
+        min_y: The vertex of the mesh with the minimum y-coordinate
+        min_z: The vertex of the mesh with the minimum z-coordinate
+    '''
 
-        # Find the vertex of the mesh with the maximum x-coordinate
-        max_x_idx = np.argmax(mesh.vertices[:, 0])
-        max_x = mesh.vertices[max_x_idx]
+    # Find the vertex of the mesh with the maximum x-coordinate
+    max_x_idx = np.argmax(mesh.vertices[:, 0])
+    max_x = mesh.vertices[max_x_idx]
 
-        # Find the vertex of the mesh with the maximum y-coordinate
-        max_y_idx = np.argmax(mesh.vertices[:, 1])
-        max_y = mesh.vertices[max_y_idx]
+    # Find the vertex of the mesh with the maximum y-coordinate
+    max_y_idx = np.argmax(mesh.vertices[:, 1])
+    max_y = mesh.vertices[max_y_idx]
 
-        # Find the vertex of the mesh with the maximum z-coordinate
-        max_z_idx = np.argmax(mesh.vertices[:, 2])
-        max_z = mesh.vertices[max_z_idx]
+    # Find the vertex of the mesh with the maximum z-coordinate
+    max_z_idx = np.argmax(mesh.vertices[:, 2])
+    max_z = mesh.vertices[max_z_idx]
 
-        # Find the vertex of the mesh with the minimum x-coordinate
-        min_x_idx = np.argmin(mesh.vertices[:, 0])
-        min_x = mesh.vertices[min_x_idx]
+    # Find the vertex of the mesh with the minimum x-coordinate
+    min_x_idx = np.argmin(mesh.vertices[:, 0])
+    min_x = mesh.vertices[min_x_idx]
 
-        # Find the vertex of the mesh with the minimum y-coordinate
-        min_y_idx = np.argmin(mesh.vertices[:, 1])
-        min_y = mesh.vertices[min_y_idx]
+    # Find the vertex of the mesh with the minimum y-coordinate
+    min_y_idx = np.argmin(mesh.vertices[:, 1])
+    min_y = mesh.vertices[min_y_idx]
 
-        # Find the vertex of the mesh with the minimum z-coordinate
-        min_z_idx = np.argmin(mesh.vertices[:, 2])
-        min_z = mesh.vertices[min_z_idx]
+    # Find the vertex of the mesh with the minimum z-coordinate
+    min_z_idx = np.argmin(mesh.vertices[:, 2])
+    min_z = mesh.vertices[min_z_idx]
 
 
-        return [max_x, max_y, max_z, min_x, min_y, min_z]
+    return [max_x, max_y, max_z, min_x, min_y, min_z]
+
+def plane_equation_from_pos_dir(plane_pos, plane_dir):
+    
+    # Normalize the plane direction
+    normal_dir = plane_dir / np.linalg.norm(plane_dir)
+
+    # Compute the plane equation parameters
+    plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, normal_dir)])))
+
+    return plane_params
+
+def check_if_neighbor(corner_dir, face_dir):
+    for i in range(3):
+        if face_dir[i] != 0:
+            if corner_dir[i]==face_dir[i]:
+                return True
+    return False

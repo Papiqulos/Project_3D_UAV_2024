@@ -3,7 +3,7 @@ import random
 from vvrpywork.constants import Key, Color
 from vvrpywork.scene import Scene3D, get_rotation_matrix
 from vvrpywork.shapes import (
-    Point3D, Sphere3D, Cuboid3D,
+    Point3D, Triangle3D, Line3D, Sphere3D, Cuboid3D,
     Mesh3D, Label3D
 )
 import heapq
@@ -30,6 +30,8 @@ class Project(Scene3D):
 
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Project", output=True, n_sliders=1)
+        tri = Triangle3D([0, 0, 0], [1, 0, 0], [0, 1, 0], color=Color.RED)
+        self.addShape(tri, "triangle")
         self.printHelp()
         self.reset_sliders()
 
@@ -47,6 +49,9 @@ class Project(Scene3D):
 
         # Dictionary to store the k-discrete oriented polytopes (k-DOPs)
         self.kdops = {}
+
+        # Dictionary to store all the misc geometries
+        self.misc_geometries = {}
 
         # Dimension of the landing pad
         self.N = 5
@@ -133,7 +138,9 @@ class Project(Scene3D):
             self.removeShape(f"convex_hull_{mesh_name}")
             self.removeShape(f"aabb_{mesh_name}")
             self.removeShape(f"14dop_{mesh_name}")
-        
+        for name, _ in self.misc_geometries.items():
+            self.removeShape(name)
+        self.misc_geometries = {}
         self.meshes = {}
         self.convex_hulls = {}
         self.aabbs = {}
@@ -169,10 +176,10 @@ class Project(Scene3D):
         for i in range(num_drones):
             colour = COLOURS[i%len(COLOURS)]
             mesh = Mesh3D(path="models/Helicopter.obj", color=colour)
-            mesh = self.randomize_mesh(mesh, i)
+            mesh = self.randomize_mesh(mesh, i, label=True)
             self.meshes[f"drone_{i}"] = mesh
 
-    def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0) -> Mesh3D:
+    def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0, label:bool = False) -> Mesh3D:
         '''Fits the mesh into the unit sphere and randomly translates it.
 
         Args:
@@ -199,6 +206,10 @@ class Project(Scene3D):
         mesh.vertices = transformed_vertices
 
         # Add the mesh to the scene
+        if label:
+            label = Label3D(translation_vector, f"drone_{drone_id}", color=Color.BLACK)
+            self.addShape(label, f"label_{drone_id}")
+            self.misc_geometries[f"label_{drone_id}"] = label
         self.addShape(mesh, f"drone_{drone_id}")
 
         return mesh
@@ -305,6 +316,7 @@ class Project(Scene3D):
 
         return nearest_point
 
+# Needs to be refactored
     def get_all_cuboid_points(self, cuboid: Cuboid3D):
         '''Get all the corner points of the cuboid.'''
         
@@ -337,7 +349,7 @@ class Project(Scene3D):
             mesh: The mesh
             mesh_name: The name of the mesh
         '''
-
+        
         # Get the edge vertices of the mesh
         edge_vertices = U.find_edge_vertices_of_mesh(mesh)
         
@@ -391,10 +403,10 @@ class Project(Scene3D):
             # self.addShape(near, f"nearest_point_{mesh_name}_{i}")
 
             # Generate the plane from the diagonal direction and the nearest point
-            plane, plane_pos, plane_dir = U.generate_plane(diag_directions[i], [near.x, near.y, near.z], 2)
+            plane, plane_pos, plane_dir = U.generate_plane(diag_directions[i], [near.x, near.y, near.z], 3)
 
             # Get the plane parameters
-            plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
+            plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
             # Visualize the plane
             # self.addShape(plane, f"plane_{mesh_name}_{i}")
 
@@ -408,10 +420,10 @@ class Project(Scene3D):
             # self.addShape(Point3D(edge_vertex, color=Color.ORANGE, size=3), f"edge_vertex_{mesh_name}_{i}")
 
             # Generate the plane from the edge direction and the edge vertex
-            plane, plane_pos, plane_dir = U.generate_plane(edge_directions[i], edge_vertex, 2)
+            plane, plane_pos, plane_dir = U.generate_plane(edge_directions[i], edge_vertex, 3)
 
             # Get the plane parameters
-            plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
+            plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
             # Visualize the plane
             # self.addShape(plane, f"plane_{mesh_name}_{i+8}")
 
@@ -424,39 +436,53 @@ class Project(Scene3D):
 
         # Get all possible combinations of 3 planes
         combinations = U.rSubset(intersecting_planes_mesh, 3)
-        print(len(combinations))
         
         # List to store the intersection points
         intersection_points = []
+        num_of_inter = 0
 
         # Find all the intersection points of the planes
         for i, comb in enumerate(combinations):
+            if True:
+                # Visualize the planes
+                # self.addShape(comb[0], f"plane_{mesh_name}_{i}")
+                # self.misc_geometries[f"plane_{mesh_name}_{i}"] = comb[0]
+                # self.addShape(comb[1], f"plane_{mesh_name}_{i+1}")
+                # self.misc_geometries[f"plane_{mesh_name}_{i+1}"] = comb[1]
+                # self.addShape(comb[2], f"plane_{mesh_name}_{i+2}")
+                # self.misc_geometries[f"plane_{mesh_name}_{i+2}"] = comb[2]
 
-            # Visualize the planes
-            # self.addShape(comb[0], f"plane_{mesh_name}_{i}")
-            # self.addShape(comb[1], f"plane_{mesh_name}_{i+1}")
-            # self.addShape(comb[2], f"plane_{mesh_name}_{i+2}")
+                # Find the intersection point of the 3 planes
+                intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
+                                                                    intersecting_planes_dic[comb[1]], 
+                                                                    intersecting_planes_dic[comb[2]])
 
-            # Find the intersection point of the 3 planes
-            intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
-                                                                intersecting_planes_dic[comb[1]], 
-                                                                intersecting_planes_dic[comb[2]])
+                # If the intersection point is found and it is inside the AABB, store it and visualize it
+                if intersection_point is not None:
+                    if U.check_point_in_cuboid(intersection_point, aabb):
+                        # print(intersection_point)
+                        num_of_inter += 1
+                        intersection_points.append(intersection_point)
 
-            # If the intersection point is found and it is inside the AABB, store it and visualize it
-            if intersection_point is not None:
-                if U.check_point_in_cuboid(intersection_point, aabb):
-                    print(intersection_point)
-                    intersection_points.append(intersection_point)
+                        # Convert the intersection point to a Point3D object and visualize it
+                        intersection_point = Point3D(intersection_point, color=Color.ORANGE, size=1)
+                        intersection_point_id = f"{mesh_name}_inter_point_{num_of_inter}_comb{i}"
+                        self.addShape(Point3D(intersection_point, color=Color.ORANGE, size=1), intersection_point_id)
+                        self.misc_geometries[intersection_point_id] = intersection_point
 
-                    # Convert the intersection point to a Point3D object
-                    intersection_point = Point3D(intersection_point, color=Color.ORANGE, size=1)
-                    self.addShape(Point3D(intersection_point, color=Color.ORANGE, size=1), f"intersection_point_{mesh_name}_{i}")
-                    self.addShape(Label3D(intersection_point), f"combination_{i}")
-                        
+                        # Testing
+                        # comb_label = Label3D(intersection_point, f"combination_{i}", color=Color.BLACK)
+                        # self.addShape(comb_label, f"combination_{i}")
+                        # self.misc_geometries[f"combination_{i}"] = comb_label
+        
+        
+        hull = U.get_convex_hull_of_pcd(intersection_points)
+        self.addShape(hull, f"14dop_{mesh_name}")
+        self.kdops[f"14dop_{mesh_name}"] = hull
 
-        # hull = U.get_convex_hull_of_pcd(intersection_points)
-        # self.addShape(hull, f"14dop_{mesh_name}")
-        # self.kdops[f"14dop_{mesh_name}"] = hull
+
+
+        
 
 
 

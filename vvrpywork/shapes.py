@@ -3250,3 +3250,75 @@ class Label3D(Shape):
     @color.setter
     def color(self, color:ColorType):
         self._color = [*color, 1] if len(color) == 3 else [*color]
+
+class Triangle3D(Mesh3D):
+    '''A class used to represent a triangle in 3D space.'''
+
+    def __init__(self, p1:Point3D|NDArray3|List3|Tuple3, p2:Point3D|NDArray3|List3|Tuple3, p3:Point3D|NDArray3|List3|Tuple3, color:ColorType=(0, 0, 0)):
+        '''Inits Triangle3D from 3 points.
+        
+        Args:
+            p1: The first vertex of the triangle.
+            p2: The second vertex of the triangle.
+            p3: The third vertex of the triangle.
+            color: The color of the triangle (RGB or RGBA).
+        '''
+        if isinstance(p1, Point3D):
+            self._p1 = p1
+        elif isinstance(p1, (list, tuple)):
+            self._p1 = Point3D(p1)
+        elif isinstance(p1, np.ndarray):
+            self._p1 = Point3D(p1)
+        else:
+            raise TypeError("Incorrect type for p1")
+
+        if isinstance(p2, Point3D):
+            self._p2 = p2
+        elif isinstance(p2, (list, tuple)):
+            self._p2 = Point3D(p2)
+        elif isinstance(p2, np.ndarray):
+            self._p2 = Point3D(p2)
+        else:
+            raise TypeError("Incorrect type for p2")
+
+        if isinstance(p3, Point3D):
+            self._p3 = p3
+        elif isinstance(p3, (list, tuple)):
+            self._p3 = Point3D(p3)
+        elif isinstance(p3, np.ndarray):
+            self._p3 = Point3D(p3)
+        else:
+            raise TypeError("Incorrect type for p3")
+
+        self._color = [*color, 1] if len(color) == 3 else [*color]
+        self._shape = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
+        self._material = rendering.MaterialRecord()
+        self._material.shader = "defaultLitTransparency"
+        self._material.base_color = (*color[:3], color[3] if len(color) == 4 else 1)
+
+        self._shape.vertices = o3d.utility.Vector3dVector([p1, p2, p3])
+        self._shape.triangles = o3d.utility.Vector3iVector([[0, 1, 2]])
+
+    @property
+    def p1(self) -> Point3D:
+        '''The first vertex of the triangle.'''
+        return self._p1
+    
+    @property
+    def p2(self) -> Point3D:
+        '''The second vertex of the triangle.'''
+        return self._p2
+    
+    @property
+    def p3(self) -> Point3D:
+        '''The third vertex of the triangle.'''
+        return self._p3
+    
+    def get_points(self) -> NDArray:
+        '''Returns the vertices of the triangle.'''
+        return np.array([self.p1, self.p2, self.p3])
+    
+    def _addToScene(self, scene:Scene3D, name:None|str):
+        name = str(id(self)) if name is None else name
+        scene._shapeDict[name] = self
+        scene.scene_widget.scene.add_geometry(name, self._shape, self._material)
