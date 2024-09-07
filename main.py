@@ -6,7 +6,6 @@ from vvrpywork.shapes import (
     Point3D, Sphere3D, Cuboid3D,
     Mesh3D, Label3D
 )
-from scipy.spatial import ConvexHull
 import heapq
 import utility as U
 
@@ -369,96 +368,46 @@ class Project(Scene3D):
             [-1, -1, -1],
             [1, -1, -1],
             [1, -1, 1],
-            [-1, -1, 1],
+            [-1, -1, 1]
             
         ])
-        planes = []
-        for dir in directions:
-            if 0 in dir:
-                planes.append((dir, 1))
-            else:
-                planes.append((dir, np.sqrt(2)))
-        # print(planes)
         # Get the AABB of the mesh (Compute it if it does not exist)
         if not self.aabbs:
             for mesh_name, mesh in self.meshes.items():
-                self.get_aabb(mesh, mesh_name)
-        aabb = self.aabbs[f"aabb_{mesh_name}"]
-
-        # Get the 8 corner points of the AABB
-        aabb_points = self.get_all_cuboid_points(aabb)
+                aabb = self.get_aabb(mesh, mesh_name)
+        
 
         # Dictionary to store the Mesh3D objects of the intersecting planes and their parameters
         intersecting_planes_dic = {}
 
-        # Diagonal planes
+        # Distances for each direction
         dot_products = np.dot(vertices, directions.T)
         
+        # Get the indices of the maximum and minimum dot products
         max_indices = np.argmax(dot_products, axis=0)
         min_indices = np.argmin(dot_products, axis=0)
 
+        # Get the vertices with the maximum and minimum dot products
         max_vertices = vertices[max_indices]
         min_vertices = vertices[min_indices]
 
-        for i, dir in enumerate(directions[6:]):
-            
-            # Generate the plane from the edge direction and the edge vertex
-            plane, plane_pos, plane_dir = U.generate_plane(dir, max_vertices[i], 3)
+        # Map the directions to the corresponding max and min vertices
+        directions = np.array(directions)
+        direction_map = {tuple(dir): (max_vertices[i], min_vertices[i]) for i, dir in enumerate(directions)}
 
-            # Get the plane parameters
+
+
+        for i, (dir, vertex) in enumerate(direction_map.items()[6:]):
+            plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[0], 3)
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
-
-            # Store the plane 
             intersecting_planes_dic[plane] = plane_params
 
-            # Visualize the plane
-            # self.addShape(plane, f"plane_{mesh_name}_{i}")
-
-            # Generate the plane from the edge direction and the edge vertex
-            plane, plane_pos, plane_dir = U.generate_plane(dir, min_vertices[i], 3)
-
-            # Get the plane parameters
+            plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[1], 3)
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
-
-            # Store the plane 
             intersecting_planes_dic[plane] = plane_params
-
-            # Visualize the plane
-            # self.addShape(plane, f"plane_{mesh_name}_{i+14}")
-
-
-        # Get a list of the planes from the dictionary
-        intersecting_planes_mesh = list(intersecting_planes_dic.keys())
-        # print(len(intersecting_planes_mesh))
-
-        # Get all possible combinations of 3 planes
-        combinations = U.rSubset(intersecting_planes_mesh, 3)
         
         # List to store the intersection points
         intersection_points = []
-        num_of_inter = 0
-
-        # Find all the intersection points of the planes
-        for i, comb in enumerate(combinations):
-            
-
-            # Find the intersection point of the 3 planes
-            intersection_point = U.intersection_of_three_planes(intersecting_planes_dic[comb[0]], 
-                                                                intersecting_planes_dic[comb[1]], 
-                                                                intersecting_planes_dic[comb[2]])
-
-            if intersection_point is not None:
-                intersection_points.append(intersection_point)
-        
-        # print(len(intersection_points))
-
-        filtered_points = np.array([p for p in intersection_points if U.is_point_inside_polytope(p, planes)])
-        # print(filtered_points)
-
-
-        # hull = U.get_convex_hull_of_pcd(filtered_points)
-        # self.addShape(hull, f"14dop_{mesh_name}")
-        # self.kdops[f"14dop_{mesh_name}"] = hull
 
 
 

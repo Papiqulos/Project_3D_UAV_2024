@@ -291,7 +291,7 @@ def check_if_neighbor(corner_dir, face_dir):
 
 # Not working as intended
 def is_point_inside_polytope(point, planes):
-    for normal, distance in planes:
-        if np.dot(normal, point) + distance > 0:
+    for plane in planes:
+        if np.dot(plane[:3], point) + plane[3] > 0:
             return False
     return True
