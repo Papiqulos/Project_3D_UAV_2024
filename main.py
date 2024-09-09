@@ -3,7 +3,7 @@ import random
 from vvrpywork.constants import Key, Color
 from vvrpywork.scene import Scene3D, get_rotation_matrix
 from vvrpywork.shapes import (
-    Point3D, Sphere3D, Cuboid3D,
+    Point3D, Line3D, Triangle3D, Sphere3D, Cuboid3D,
     Mesh3D, Label3D
 )
 import heapq
@@ -314,33 +314,7 @@ class Project(Scene3D):
         nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
 
         return nearest_point
-
-# Needs to be refactored
-    def get_all_cuboid_points(self, cuboid: Cuboid3D):
-        '''Get all the corner points of the cuboid.'''
-        
-        # Top max and bottom min points of the cuboid
-        max_point = np.array([cuboid.x_max, cuboid.y_max, cuboid.z_max])
-        min_point = np.array([cuboid.x_min, cuboid.y_min, cuboid.z_min])
-        
-        # Cuboid diamensions
-        x_length = max_point[0] - min_point[0]
-        z_length = max_point[2] - min_point[2]
-        
-        # Get all the corners of the cuboid
-        bottom_corners = [Point3D([min_point[0], min_point[1], min_point[2]], color=Color.GREEN), Point3D([min_point[0] +x_length, min_point[1], min_point[2]], color=Color.GREEN), Point3D([min_point[0] +x_length, min_point[1], min_point[2]+z_length], color=Color.GREEN), Point3D([min_point[0], min_point[1], min_point[2]+z_length], color=Color.GREEN)]
-        top_corners = [Point3D([max_point[0], max_point[1], max_point[2]], color=Color.RED), Point3D([max_point[0] - x_length, max_point[1], max_point[2]], color=Color.YELLOW), Point3D([max_point[0] -x_length, max_point[1], max_point[2]-z_length], color=Color.MAGENTA), Point3D([max_point[0], max_point[1], max_point[2]-z_length], color=Color.BLACK)]
-        
-        # Visualize the corners
-        # for i in range(4):
-        #     randomint = np.random.randint(0, 10000)
-        #     self.addShape(bottom_corners[i], f"bottom_corners_{randomint}")
-        #     self.addShape(top_corners[i], f"top_corners_{randomint}")
-        
-        # Combine the bottom and top corners
-        corners = bottom_corners + top_corners
-        return corners
-
+    
     def get_14dop(self, mesh: Mesh3D, mesh_name:str) -> None:
         '''Computes the 14-discrete oriented polytope (k-DOP) of a mesh.
         
@@ -348,6 +322,7 @@ class Project(Scene3D):
             mesh: The mesh
             mesh_name: The name of the mesh
         '''
+        global aabb
         vertices = np.array(mesh.vertices)
         
         # 14 directions for the 14-DOP
@@ -372,13 +347,15 @@ class Project(Scene3D):
             
         ])
         # Get the AABB of the mesh (Compute it if it does not exist)
-        if not self.aabbs:
-            for mesh_name, mesh in self.meshes.items():
-                aabb = self.get_aabb(mesh, mesh_name)
+        print(self.aabbs)
+        if f"aabb_{mesh_name}" not in self.aabbs.keys():
+            aabb = self.get_aabb(mesh, mesh_name)
+        else:
+            aabb = self.aabbs[f"aabb_{mesh_name}"]
         
 
         # Dictionary to store the Mesh3D objects of the intersecting planes and their parameters
-        intersecting_planes_dic = {}
+        # intersecting_planes_dic = {}
 
         # Distances for each direction
         dot_products = np.dot(vertices, directions.T)
@@ -389,25 +366,99 @@ class Project(Scene3D):
 
         # Get the vertices with the maximum and minimum dot products
         max_vertices = vertices[max_indices]
+        max_vertices_faces = max_vertices[:6]
+        max_vertices_corners = max_vertices[6:]
+
         min_vertices = vertices[min_indices]
+        min_vertices_faces = min_vertices[:6]
+        min_vertices_corners = min_vertices[6:]
 
-        # Map the directions to the corresponding max and min vertices
-        directions = np.array(directions)
-        direction_map = {tuple(dir): (max_vertices[i], min_vertices[i]) for i, dir in enumerate(directions)}
+        # Split the directions into faces and corners
+        faces = directions[:6]
+        corners = directions[6:]
+
+        # Map the directions to the corresponding max and min vertices for the corners and faces
+        faces_map = {tuple(dir): (max_vertices_faces[i], min_vertices_faces[i]) for i, dir in enumerate(faces)}
+        corners_map = {tuple(dir): (max_vertices_corners[i], min_vertices_corners[i]) for i, dir in enumerate(corners)}
+        
+        # Dictionary to store the faces and corners
+        faces_dict = {}
+        corners_dict = {}
+
+        # List to store the intersection points
+        intersection_points = []
 
 
-
-        for i, (dir, vertex) in enumerate(direction_map.items()[6:]):
+        # Get the plane equations for the faces and corners
+        for i, (dir, vertex) in enumerate(faces_map.items()):
             plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[0], 3)
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
-            intersecting_planes_dic[plane] = plane_params
+            faces_dict[plane] = plane_params
+
+            # Visualize the plane
+            # self.addShape(plane, f"face_plane_max_{i}")
 
             plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[1], 3)
             plane_params = U.plane_equation_from_pos_dir(plane_pos, plane_dir)
-            intersecting_planes_dic[plane] = plane_params
+            faces_dict[plane] = plane_params
+
+            # Visualize the plane
+            # self.addShape(plane, f"face_plane_min_{i}")
+
+        for i, (dir, vertex) in enumerate(corners_map.items()):
+            
+            plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[0], 3)
+            plane_params = U.plane_equation_from_pos_dir(vertex[0], list(dir))
+            corners_dict[plane] = plane_params
+
+            # Visualize the plane
+            # self.addShape(plane, f"corner_plane_max_{i}")
+
+            plane, plane_dir, plane_pos = U.generate_plane(list(dir), vertex[1], 3)
+            plane_params = U.plane_equation_from_pos_dir(vertex[1], list(dir))
+            corners_dict[plane] = plane_params
+
+            # Visualize the plane
+            # self.addShape(plane, f"corner_plane_min_{i}")
+
+
+        points_of_aabb = U.get_all_points_of_cuboid(aabb)
+        lines_of_aabb = U.get_all_lines_of_cuboid(aabb)
         
-        # List to store the intersection points
-        intersection_points = []
+        # Get the intersection points of the corner planes with the AABB
+        for i, (plane, params) in enumerate(corners_dict.items()):
+            # if i == 15:
+                # self.addShape(plane, f"corner_plane_max_{i}")
+                tri_points = []
+                for j, line in enumerate(lines_of_aabb.lines):
+                    # if j == 7:
+                        p1 = points_of_aabb[line[0]]
+                        p2 = points_of_aabb[line[1]]
+
+                        
+                        plane_normal = np.array(params[:3])
+                        plane_d = params[3]
+
+                        intersection_point = U.intersect_line_plane(p1, p2, plane_normal, plane_d)
+                        if intersection_point is not None:
+                            if U.check_point_in_cuboid(intersection_point, aabb):
+                                intersection_points.append(intersection_point)
+                                
+
+        # Visualize the intersection points
+        print(f"inter points found : {len(intersection_points)}")
+        # for i, point in enumerate(intersection_points):
+            # self.addShape(Point3D(point, color=Color.ORANGE, size=1), f"intersection_point_{mesh_name}_{i}")
+            # self.misc_geometries[f"intersection_point_{mesh_name}_{i}"] = Point3D(point, color=Color.ORANGE, size=1)
+
+        # Make a convex hull of the intersection points
+        intersection_points = np.array(intersection_points)
+        ch_mesh = U.get_convex_hull_of_pcd(intersection_points)
+        self.addShape(ch_mesh, f"14dop_{mesh_name}")
+        self.kdops[f"14dop_{mesh_name}"] = ch_mesh
+
+        
+        
 
 
 

@@ -1,8 +1,9 @@
 import numpy as np
 import open3d as o3d
 import numpy as np
+from vvrpywork.constants import Color
 from vvrpywork.shapes import (
-    Cuboid3D, Mesh3D
+    Cuboid3D, Mesh3D, Point3D, LineSet3D, Line3D
 )
 from itertools import combinations
 
@@ -274,20 +275,12 @@ def find_edge_vertices_of_mesh(mesh:Mesh3D) -> tuple:
 def plane_equation_from_pos_dir(plane_pos, plane_dir):
     
     # Normalize the plane direction
-    normal_dir = plane_dir / np.linalg.norm(plane_dir)
+    # normal_dir = plane_dir / np.linalg.norm(plane_dir)
 
     # Compute the plane equation parameters
-    plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, normal_dir)])))
+    plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
 
     return plane_params
-
-# Not used
-def check_if_neighbor(corner_dir, face_dir):
-    for i in range(3):
-        if face_dir[i] != 0:
-            if corner_dir[i]==face_dir[i]:
-                return True
-    return False
 
 # Not working as intended
 def is_point_inside_polytope(point, planes):
@@ -295,3 +288,101 @@ def is_point_inside_polytope(point, planes):
         if np.dot(plane[:3], point) + plane[3] > 0:
             return False
     return True
+
+def intersect_line_plane(p1, p2, plane_normal, plane_d):
+    """
+    Finds the intersection point of a line and a plane in 3D space.
+    
+    Parameters:
+    - π1: np.array of shape (3,) representing the first point on the line.
+    - π2: np.array of shape (3,) representing the second point on the line.
+    - plane_normal: np.array of shape (3,) representing the normal vector of the plane.
+    - plane_d: float representing the distance from the origin (d in plane equation).
+    
+    Returns:
+    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the line is parallel to the plane.
+    """
+    p1 = np.array([p1.x, p1.y, p1.z])
+    p2 = np.array([p2.x, p2.y, p2.z])
+    # Vector direction of the line
+    line_direction = p2 - p1
+    
+    # Compute the denominator of the equation for t
+    denominator = np.dot(plane_normal, line_direction)
+    
+    # If denominator is zero, the line is parallel to the plane
+    if abs(denominator) < 1e-6:
+        print("The line is parallel to the plane.")
+        return None
+    
+    # Compute the numerator of the equation for t
+    numerator = -(np.dot(plane_normal, p1) + plane_d)
+    
+    # Solve for t
+    t = numerator / denominator
+    
+    # Compute the intersection point
+    intersection_point = p1 + t * line_direction
+    return intersection_point
+
+def get_all_points_of_cuboid(cuboid: Cuboid3D, self=0):
+    '''Get all the corner points of the cuboid.'''
+    
+    # Top max and bottom min points of the cuboid
+    max_point = np.array([cuboid.x_max, cuboid.y_max, cuboid.z_max])
+    min_point = np.array([cuboid.x_min, cuboid.y_min, cuboid.z_min])
+    
+    # Cuboid diamensions
+    x_length = max_point[0] - min_point[0]
+    z_length = max_point[2] - min_point[2]
+    
+    # Get all the corners of the cuboid
+    bottom_corners = [Point3D([min_point[0], min_point[1], min_point[2]], color=Color.CYAN), 
+                      Point3D([min_point[0] +x_length, min_point[1], min_point[2]], color=Color.GREY), 
+                      Point3D([min_point[0] +x_length, min_point[1], min_point[2]+z_length], color=Color.ORANGE), 
+                      Point3D([min_point[0], min_point[1], min_point[2]+z_length], color=Color.GREEN)]
+    top_corners = [Point3D([max_point[0], max_point[1], max_point[2]], color=Color.RED), 
+                   Point3D([max_point[0] - x_length, max_point[1], max_point[2]], color=Color.YELLOW), 
+                   Point3D([max_point[0] -x_length, max_point[1], max_point[2]-z_length], color=Color.MAGENTA), 
+                   Point3D([max_point[0], max_point[1], max_point[2]-z_length], color=Color.BLACK)]
+    
+    # Visualize the corners
+    if self:
+        for i in range(4):
+            randomint = np.random.randint(0, 10000)
+            self.addShape(bottom_corners[i], f"bottom_corners_{randomint}")
+            self.addShape(top_corners[i], f"top_corners_{randomint}")
+    
+    # Combine the bottom and top corners
+    corners = bottom_corners + top_corners
+    return corners
+
+def get_all_lines_of_cuboid(cuboid:Cuboid3D) -> LineSet3D:
+    '''Returns all the lines of a cuboid.
+
+    Args:
+        cuboid: The Cuboid3D object
+
+    Returns:
+        lines: A list of all the lines of the cuboid
+    '''
+    lines = LineSet3D()
+    # Get all the vertices of the cuboid
+    corners = get_all_points_of_cuboid(cuboid)
+
+    # Get all the lines of the cuboid
+    lines.add(Line3D(corners[0], corners[1]))
+    lines.add(Line3D(corners[1], corners[2]))
+    lines.add(Line3D(corners[2], corners[3]))
+    lines.add(Line3D(corners[3], corners[0]))
+    lines.add(Line3D(corners[4], corners[5]))
+    lines.add(Line3D(corners[5], corners[6]))
+    lines.add(Line3D(corners[6], corners[7]))
+    lines.add(Line3D(corners[7], corners[4]))
+    lines.add(Line3D(corners[0], corners[6]))
+    lines.add(Line3D(corners[1], corners[7]))
+    lines.add(Line3D(corners[2], corners[4]))
+    lines.add(Line3D(corners[3], corners[5]))
+
+    return lines
+
