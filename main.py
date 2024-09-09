@@ -37,6 +37,9 @@ class Project(Scene3D):
         # Dictionary to store the meshes
         self.meshes = {}
 
+        # Dictionary to store the rotation matrices of the drones
+        self.rotation_matrices = {}
+
         # Dictionary to store the planes
         self.planes = {}
 
@@ -179,12 +182,13 @@ class Project(Scene3D):
             self.meshes[f"drone_{i}"] = mesh
 
     def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0, label:bool = False) -> Mesh3D:
-        '''Fits the mesh into the unit sphere and randomly translates it.
+        '''Fits the mesh into the unit sphere and randomly translates it and rotates it.
 
         Args:
             mesh: The mesh
             drone_id: The ID of the drone
             trans_thresold: The translation threshold
+            label: Whether to add a label to the drone
 
         Returns:
             mesh: The randomized mesh
@@ -192,15 +196,21 @@ class Project(Scene3D):
 
         # Fit the mesh into the unit sphere
         mesh = self.unit_sphere_normalization(mesh)
+        vertices = mesh.vertices
 
         # Randomly translate the mesh
         translation_vector = np.array([random.uniform(-trans_thresold, trans_thresold), 
                                        random.uniform(0.5, trans_thresold), 
                                        random.uniform(-trans_thresold, trans_thresold)])
-        center = np.array([0, 0, 0])
-        dir = np.array([1, 0, 0])
-        vertices = mesh.vertices
-        rotation_matrix = get_rotation_matrix(center, dir)
+        
+        # Randomly rotate the mesh
+        # center = np.array([0, 0, 0])
+        # dir = np.array([random.uniform(0, rotate_thresold), random.uniform(0, rotate_thresold), random.uniform(0, rotate_thresold)])
+        # rotation_matrix = get_rotation_matrix(center, dir)
+        rotation_matrix = U.get_random_rotation_matrix()
+
+        # Apply the translation and rotation to the vertices
+        self.rotation_matrices[f"rotation_matrix_{drone_id}"] = rotation_matrix
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
         mesh.vertices = transformed_vertices
 
@@ -293,15 +303,15 @@ class Project(Scene3D):
         # Add the AABB to the scene
         self.addShape(aabb, f"aabb_{mesh_name}")
     
-    def get_nearest_point(self, point:list|np.ndarray, mesh:Mesh3D) -> Point3D:
+    def get_nearest_point(self, point:np.ndarray, mesh:Mesh3D) -> Point3D:
         '''Get the nearest point to a given point on the mesh.
 
         Args:
-            point: The point
-            mesh: The mesh
+            point
+            mesh 
 
         Returns:
-            nearest_point: The nearest point
+            nearest_point
         '''
         # Construct the k-d tree from the mesh vertices
         kd_tree = KdNode.build_kd_node(np.array(mesh.vertices))
@@ -346,15 +356,12 @@ class Project(Scene3D):
             [-1, -1, 1]
             
         ])
+
         # Get the AABB of the mesh (Compute it if it does not exist)
         if f"aabb_{mesh_name}" not in self.aabbs.keys():
             aabb = self.get_aabb(mesh, mesh_name)
         else:
             aabb = self.aabbs[f"aabb_{mesh_name}"]
-        
-
-        # Dictionary to store the Mesh3D objects of the intersecting planes and their parameters
-        # intersecting_planes_dic = {}
 
         # Distances for each direction
         dot_products = np.dot(vertices, directions.T)
@@ -446,9 +453,6 @@ class Project(Scene3D):
 
         # Visualize the intersection points
         print(f"inter points found : {len(intersection_points)}")
-        # for i, point in enumerate(intersection_points):
-            # self.addShape(Point3D(point, color=Color.ORANGE, size=1), f"intersection_point_{mesh_name}_{i}")
-            # self.misc_geometries[f"intersection_point_{mesh_name}_{i}"] = Point3D(point, color=Color.ORANGE, size=1)
 
         # Make a convex hull of the intersection points
         intersection_points = np.array(intersection_points)
@@ -470,7 +474,6 @@ class Project(Scene3D):
 
 
             
-
 
 class KdNode:
 
