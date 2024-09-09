@@ -2477,10 +2477,7 @@ class Cuboid3D(Shape):
     
     # My adddition
     def get_all_points(self) -> List[Point3D]:
-        '''Returns all the corners of the cuboid.
-        
-        Returns all the corners of the cuboid as a list of `Point3D`
-        '''
+        '''Returns all the corners of the cuboid in a list of Point3D objects.'''
     
         # Top max and bottom min points of the cuboid
         max_point = np.array([self.x_max, self.y_max, self.z_max])
@@ -2506,14 +2503,7 @@ class Cuboid3D(Shape):
     
     # My addition
     def get_all_lines(self) -> LineSet3D:
-        '''Returns all the lines of a cuboid.
-
-        Args:
-            cuboid: The Cuboid3D object
-
-        Returns:
-            lines: A list of all the lines of the cuboid
-        '''
+        '''Returns all the lines of a cuboid in a LineSet3D object.'''
         lines = LineSet3D()
         # Get all the vertices of the cuboid
         corners = self.get_all_points()
@@ -3332,7 +3322,7 @@ class Label3D(Shape):
     def color(self, color:ColorType):
         self._color = [*color, 1] if len(color) == 3 else [*color]
 
-# My addition
+# My addition(Not used)
 class Triangle3D(Mesh3D):
     '''A class used to represent a triangle in 3D space.'''
 

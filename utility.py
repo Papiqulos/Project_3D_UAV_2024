@@ -2,13 +2,19 @@ import numpy as np
 import open3d as o3d
 import numpy as np
 from vvrpywork.shapes import (
-    Mesh3D
+    Point3D, Mesh3D
 )
 
-
-
-# Contruct a default plane pointing in the upward y direction 
-def default_plane(size=1.0):
+def default_plane(size:float=1.0) -> o3d.geometry.TriangleMesh:
+    '''
+    Contruct a default plane pointing in the upward y direction 
+    
+    Args:
+    - size: Size of the plane
+    
+    Returns:
+    - plane_mesh: Open3D TriangleMesh object representing the plane.
+    '''
     # Define vertices of the plane (two triangles)
     vertices = np.array([[-size,  0.0,  -size],  # Vertex 0
                         [ size,  0.0,  -size],  # Vertex 1
@@ -28,14 +34,99 @@ def default_plane(size=1.0):
 
     return plane_mesh
 
-# Generate a plane with given position and direction
-def generate_plane(direction, translation, size=1.0):
+def rotation_matrix_from_axis_angle(axis:np.ndarray, angle:float) -> np.ndarray:
+    '''
+    Create a rotation matrix from an axis-angle representation.
+    
+    Args:
+    - axis: np.array of shape (3,) representing the rotation axis.
+    - angle: float representing the rotation angle in radians.
+    
+    Returns:
+    - R: np.array of shape (3, 3) representing the rotation matrix.
+    '''
+    # Normalize the rotation axis
+    axis = axis / np.linalg.norm(axis)
+    
+    # Components of the axis
+    x, y, z = axis
+    
+    # Skew-symmetric matrix for the axis
+    K = np.array([
+        [0, -z, y],
+        [z, 0, -x],
+        [-y, x, 0]
+    ])
+    
+    # Identity matrix
+    I = np.eye(3)
+    
+    # Rodrigues' rotation formula
+    R = I + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
+    
+    return R
+
+# Not used
+def euler_angles_to_rotation_matrix(euler_angles:np.ndarray) -> np.ndarray:
+    """
+    Create a rotation matrix from Euler angles.
+
+    Parameters:
+    - euler_angles: Euler angles [rx, ry, rz] in radians
+
+    Returns:
+    - Rotation matrix
+    """
+    rx, ry, rz = euler_angles
+
+    rotation_matrix_x = np.array([[1, 0, 0],
+                                   [0, np.cos(rx), -np.sin(rx)],
+                                   [0, np.sin(rx), np.cos(rx)]])
+
+    rotation_matrix_y = np.array([[np.cos(ry), 0, np.sin(ry)],
+                                   [0, 1, 0],
+                                   [-np.sin(ry), 0, np.cos(ry)]])
+
+    rotation_matrix_z = np.array([[np.cos(rz), -np.sin(rz), 0],
+                                   [np.sin(rz), np.cos(rz), 0],
+                                   [0, 0, 1]])
+    # Combine rotation matrices
+    rotation_matrix = rotation_matrix_z @ rotation_matrix_y @ rotation_matrix_x
+    
+    return rotation_matrix
+
+# Not used
+def compute_euler_angles(direction:np.ndarray) -> np.ndarray:
+    '''
+    Compute Euler angles from a direction vector.
+    
+    Args:
+    - direction: np.array of shape (3,) representing the direction vector.
+    
+    Returns:
+    - euler_angles: np.array of shape (3,) representing the Euler angles [alpha, beta, gamma].
+    '''
+    x, y, z = direction
+    
+    # Yaw (alpha)
+    alpha = np.arctan2(y, x)
+    
+    # Pitch (beta)
+    beta = np.arctan2(z, np.sqrt(x**2 + y**2))
+    
+    # Roll (gamma) is typically 0 for aligning vectors
+    gamma = 0.0
+    
+    return np.array([alpha, beta, gamma])
+
+def generate_plane(direction:np.ndarray, translation:np.ndarray, size:float = 1.0) -> tuple[Mesh3D, np.ndarray, np.ndarray]:
     """
     Generate a plane mesh with specified orientation and position.
 
     Parameters:
     - direction: Direction vector [dx, dy, dz] of the plane.
     - translation: Translation vector [tx, ty, tz] for position.
+    - size: Size of the plane.
 
     Returns:
     - plane: Open3D TriangleMesh object representing the plane.
@@ -82,18 +173,18 @@ def generate_plane(direction, translation, size=1.0):
 
     return plane, transformed_center, transformed_dir
 
-def get_convex_hull_of_pcd(points):
-    '''Creates a triangle mesh from a set of points by creating the convex hull of the points.'''
-    # Create Open3D PointCloud object
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(points)
-
-    hull, _ = pcd.compute_convex_hull()
-    hull = o3d_to_mesh(hull)
+def intersection_of_three_planes(plane1:np.ndarray, plane2:np.ndarray, plane3:np.ndarray) -> np.ndarray:
+    '''
+    Compute the intersection point of three planes in 3D space.
     
-    return hull
-
-def intersection_of_three_planes(plane1, plane2, plane3):
+    Args:
+    - plane1: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+    - plane2: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+    - plane3: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+    
+    Returns:
+    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the planes do not intersect.
+    '''
     # Extract coefficients from the plane equations
     A = np.array([plane1[:3], plane2[:3], plane3[:3]])
     b = np.array([-plane1[3], -plane2[3], -plane3[3]])
@@ -107,69 +198,61 @@ def intersection_of_three_planes(plane1, plane2, plane3):
     
     return intersection_point
 
-def rotation_matrix_from_axis_angle(axis, angle):
-    # Normalize the rotation axis
-    axis = axis / np.linalg.norm(axis)
-    
-    # Components of the axis
-    x, y, z = axis
-    
-    # Skew-symmetric matrix for the axis
-    K = np.array([
-        [0, -z, y],
-        [z, 0, -x],
-        [-y, x, 0]
-    ])
-    
-    # Identity matrix
-    I = np.eye(3)
-    
-    # Rodrigues' rotation formula
-    R = I + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
-    
-    return R
-
-def euler_angles_to_rotation_matrix(euler_angles):
+def plane_equation_from_pos_dir(plane_pos:np.ndarray, plane_dir:float) -> np.ndarray:
     """
-    Create a rotation matrix from Euler angles.
-
-    Parameters:
-    - euler_angles: Euler angles [rx, ry, rz] in radians
-
+    Compute the plane equation parameters from a position and direction vector.
+    
+    Args:
+    - plane_pos: np.array of shape (3,) representing a point on the plane.
+    - plane_dir: np.array of shape (3,) representing the direction vector of the plane.
+    
     Returns:
-    - Rotation matrix
+    - plane_params: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
     """
-    rx, ry, rz = euler_angles
+    # Normalize the plane direction
+    # normal_dir = plane_dir / np.linalg.norm(plane_dir)
 
-    rotation_matrix_x = np.array([[1, 0, 0],
-                                   [0, np.cos(rx), -np.sin(rx)],
-                                   [0, np.sin(rx), np.cos(rx)]])
+    # Compute the plane equation parameters
+    plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
 
-    rotation_matrix_y = np.array([[np.cos(ry), 0, np.sin(ry)],
-                                   [0, 1, 0],
-                                   [-np.sin(ry), 0, np.cos(ry)]])
+    return plane_params
 
-    rotation_matrix_z = np.array([[np.cos(rz), -np.sin(rz), 0],
-                                   [np.sin(rz), np.cos(rz), 0],
-                                   [0, 0, 1]])
-    # Combine rotation matrices
-    rotation_matrix = rotation_matrix_z @ rotation_matrix_y @ rotation_matrix_x
+def intersect_line_plane(p1:Point3D|np.ndarray, p2:Point3D|np.ndarray, plane_normal:np.ndarray, plane_d:float) -> np.ndarray:
+    """
+    Finds the intersection point of a line and a plane in 3D space.
     
-    return rotation_matrix
-
-def compute_euler_angles(direction):
-    x, y, z = direction
+    Args:
+    - p1: np.array of shape (3,) or Point3D object representing the first point on the line.
+    - p2: np.array of shape (3,) or Point3D object representing the second point on the line.
+    - plane_normal: np.array of shape (3,) representing the normal vector of the plane.
+    - plane_d: float representing the distance from the origin (d in plane equation).
     
-    # Yaw (alpha)
-    alpha = np.arctan2(y, x)
+    Returns:
+    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the line is parallel to the plane.
+    """
+    if isinstance(p1, Point3D):
+        p1 = np.array([p1.x, p1.y, p1.z])
+        p2 = np.array([p2.x, p2.y, p2.z])
+    # Vector direction of the line
+    line_direction = p2 - p1
     
-    # Pitch (beta)
-    beta = np.arctan2(z, np.sqrt(x**2 + y**2))
+    # Compute the denominator of the equation for t
+    denominator = np.dot(plane_normal, line_direction)
     
-    # Roll (gamma) is typically 0 for aligning vectors
-    gamma = 0.0
+    # If denominator is zero, the line is parallel to the plane
+    if abs(denominator) < 1e-6:
+        print("The line is parallel to the plane.")
+        return None
     
-    return np.array([alpha, beta, gamma])
+    # Compute the numerator of the equation for t
+    numerator = -(np.dot(plane_normal, p1) + plane_d)
+    
+    # Solve for t
+    t = numerator / denominator
+    
+    # Compute the intersection point
+    intersection_point = p1 + t * line_direction
+    return intersection_point
 
 def o3d_to_mesh(o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
         '''Converts an Open3D mesh to a Mesh3D object.
@@ -201,50 +284,17 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
-def plane_equation_from_pos_dir(plane_pos, plane_dir):
-    
-    # Normalize the plane direction
-    # normal_dir = plane_dir / np.linalg.norm(plane_dir)
+def get_convex_hull_of_pcd(points:np.ndarray) -> Mesh3D:
+    '''Creates a triangle mesh from a set of points by creating the convex hull of the points.'''
+    # Create Open3D PointCloud object
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
 
-    # Compute the plane equation parameters
-    plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
+    hull, _ = pcd.compute_convex_hull()
+    hull = o3d_to_mesh(hull)
+    
+    return hull
 
-    return plane_params
 
-def intersect_line_plane(p1, p2, plane_normal, plane_d):
-    """
-    Finds the intersection point of a line and a plane in 3D space.
-    
-    Parameters:
-    - π1: np.array of shape (3,) representing the first point on the line.
-    - π2: np.array of shape (3,) representing the second point on the line.
-    - plane_normal: np.array of shape (3,) representing the normal vector of the plane.
-    - plane_d: float representing the distance from the origin (d in plane equation).
-    
-    Returns:
-    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the line is parallel to the plane.
-    """
-    p1 = np.array([p1.x, p1.y, p1.z])
-    p2 = np.array([p2.x, p2.y, p2.z])
-    # Vector direction of the line
-    line_direction = p2 - p1
-    
-    # Compute the denominator of the equation for t
-    denominator = np.dot(plane_normal, line_direction)
-    
-    # If denominator is zero, the line is parallel to the plane
-    if abs(denominator) < 1e-6:
-        print("The line is parallel to the plane.")
-        return None
-    
-    # Compute the numerator of the equation for t
-    numerator = -(np.dot(plane_normal, p1) + plane_d)
-    
-    # Solve for t
-    t = numerator / denominator
-    
-    # Compute the intersection point
-    intersection_point = p1 + t * line_direction
-    return intersection_point
 
 
