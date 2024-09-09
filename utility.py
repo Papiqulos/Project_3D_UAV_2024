@@ -1,16 +1,11 @@
 import numpy as np
 import open3d as o3d
 import numpy as np
-from vvrpywork.constants import Color
 from vvrpywork.shapes import (
-    Cuboid3D, Mesh3D, Point3D, LineSet3D, Line3D
+    Mesh3D
 )
-from itertools import combinations
 
 
-def rSubset(arr, r):
-    '''return list of all subsets of length r''' 
-    return list(combinations(arr, r))
 
 # Contruct a default plane pointing in the upward y direction 
 def default_plane(size=1.0):
@@ -98,25 +93,6 @@ def get_convex_hull_of_pcd(points):
     
     return hull
 
-def check_point_in_cuboid(point, cuboid: Cuboid3D) -> bool:
-    """
-    Check if a point is inside a cuboid.
-
-    Parameters:
-    - point: Point [x, y, z] to check.
-    - cuboid: Cuboid3D object representing the cuboid.
-
-    Returns:
-    - True if the point is inside the cuboid, False otherwise.
-    """
-    # Check if the point is inside the cuboid
-    if (cuboid.x_min <= point[0] <= cuboid.x_max and
-        cuboid.y_min <= point[1] <= cuboid.y_max and
-        cuboid.z_min<= point[2] <= cuboid.z_max):
-        return True
-    else:
-        return False
-
 def intersection_of_three_planes(plane1, plane2, plane3):
     # Extract coefficients from the plane equations
     A = np.array([plane1[:3], plane2[:3], plane3[:3]])
@@ -130,10 +106,6 @@ def intersection_of_three_planes(plane1, plane2, plane3):
     intersection_point = np.linalg.solve(A, b)
     
     return intersection_point
-
-def remove_duplicates(points):
-    '''Removes duplicate points from a set of points.'''
-    return np.unique(points, axis=0)
 
 def rotation_matrix_from_axis_angle(axis, angle):
     # Normalize the rotation axis
@@ -229,49 +201,6 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
-# Not used
-def find_edge_vertices_of_mesh(mesh:Mesh3D) -> tuple:
-    '''Finds the vertices of the mesh that are at the edges of the mesh.
-
-    Args:
-        mesh: The Mesh3D object
-
-    Returns:
-        max_x: The vertex of the mesh with the maximum x-coordinate
-        max_y: The vertex of the mesh with the maximum y-coordinate
-        max_z: The vertex of the mesh with the maximum z-coordinate
-        min_x: The vertex of the mesh with the minimum x-coordinate
-        min_y: The vertex of the mesh with the minimum y-coordinate
-        min_z: The vertex of the mesh with the minimum z-coordinate
-    '''
-
-    # Find the vertex of the mesh with the maximum x-coordinate
-    max_x_idx = np.argmax(mesh.vertices[:, 0])
-    max_x = mesh.vertices[max_x_idx]
-
-    # Find the vertex of the mesh with the maximum y-coordinate
-    max_y_idx = np.argmax(mesh.vertices[:, 1])
-    max_y = mesh.vertices[max_y_idx]
-
-    # Find the vertex of the mesh with the maximum z-coordinate
-    max_z_idx = np.argmax(mesh.vertices[:, 2])
-    max_z = mesh.vertices[max_z_idx]
-
-    # Find the vertex of the mesh with the minimum x-coordinate
-    min_x_idx = np.argmin(mesh.vertices[:, 0])
-    min_x = mesh.vertices[min_x_idx]
-
-    # Find the vertex of the mesh with the minimum y-coordinate
-    min_y_idx = np.argmin(mesh.vertices[:, 1])
-    min_y = mesh.vertices[min_y_idx]
-
-    # Find the vertex of the mesh with the minimum z-coordinate
-    min_z_idx = np.argmin(mesh.vertices[:, 2])
-    min_z = mesh.vertices[min_z_idx]
-
-
-    return [max_x, max_y, max_z, min_x, min_y, min_z]
-
 def plane_equation_from_pos_dir(plane_pos, plane_dir):
     
     # Normalize the plane direction
@@ -281,13 +210,6 @@ def plane_equation_from_pos_dir(plane_pos, plane_dir):
     plane_params = np.concatenate((plane_dir, -np.array([np.dot(plane_pos, plane_dir)])))
 
     return plane_params
-
-# Not working as intended
-def is_point_inside_polytope(point, planes):
-    for plane in planes:
-        if np.dot(plane[:3], point) + plane[3] > 0:
-            return False
-    return True
 
 def intersect_line_plane(p1, p2, plane_normal, plane_d):
     """
@@ -325,64 +247,4 @@ def intersect_line_plane(p1, p2, plane_normal, plane_d):
     intersection_point = p1 + t * line_direction
     return intersection_point
 
-def get_all_points_of_cuboid(cuboid: Cuboid3D, self=0):
-    '''Get all the corner points of the cuboid.'''
-    
-    # Top max and bottom min points of the cuboid
-    max_point = np.array([cuboid.x_max, cuboid.y_max, cuboid.z_max])
-    min_point = np.array([cuboid.x_min, cuboid.y_min, cuboid.z_min])
-    
-    # Cuboid diamensions
-    x_length = max_point[0] - min_point[0]
-    z_length = max_point[2] - min_point[2]
-    
-    # Get all the corners of the cuboid
-    bottom_corners = [Point3D([min_point[0], min_point[1], min_point[2]], color=Color.CYAN), 
-                      Point3D([min_point[0] +x_length, min_point[1], min_point[2]], color=Color.GREY), 
-                      Point3D([min_point[0] +x_length, min_point[1], min_point[2]+z_length], color=Color.ORANGE), 
-                      Point3D([min_point[0], min_point[1], min_point[2]+z_length], color=Color.GREEN)]
-    top_corners = [Point3D([max_point[0], max_point[1], max_point[2]], color=Color.RED), 
-                   Point3D([max_point[0] - x_length, max_point[1], max_point[2]], color=Color.YELLOW), 
-                   Point3D([max_point[0] -x_length, max_point[1], max_point[2]-z_length], color=Color.MAGENTA), 
-                   Point3D([max_point[0], max_point[1], max_point[2]-z_length], color=Color.BLACK)]
-    
-    # Visualize the corners
-    if self:
-        for i in range(4):
-            randomint = np.random.randint(0, 10000)
-            self.addShape(bottom_corners[i], f"bottom_corners_{randomint}")
-            self.addShape(top_corners[i], f"top_corners_{randomint}")
-    
-    # Combine the bottom and top corners
-    corners = bottom_corners + top_corners
-    return corners
-
-def get_all_lines_of_cuboid(cuboid:Cuboid3D) -> LineSet3D:
-    '''Returns all the lines of a cuboid.
-
-    Args:
-        cuboid: The Cuboid3D object
-
-    Returns:
-        lines: A list of all the lines of the cuboid
-    '''
-    lines = LineSet3D()
-    # Get all the vertices of the cuboid
-    corners = get_all_points_of_cuboid(cuboid)
-
-    # Get all the lines of the cuboid
-    lines.add(Line3D(corners[0], corners[1]))
-    lines.add(Line3D(corners[1], corners[2]))
-    lines.add(Line3D(corners[2], corners[3]))
-    lines.add(Line3D(corners[3], corners[0]))
-    lines.add(Line3D(corners[4], corners[5]))
-    lines.add(Line3D(corners[5], corners[6]))
-    lines.add(Line3D(corners[6], corners[7]))
-    lines.add(Line3D(corners[7], corners[4]))
-    lines.add(Line3D(corners[0], corners[6]))
-    lines.add(Line3D(corners[1], corners[7]))
-    lines.add(Line3D(corners[2], corners[4]))
-    lines.add(Line3D(corners[3], corners[5]))
-
-    return lines
 

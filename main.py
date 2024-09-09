@@ -347,7 +347,6 @@ class Project(Scene3D):
             
         ])
         # Get the AABB of the mesh (Compute it if it does not exist)
-        print(self.aabbs)
         if f"aabb_{mesh_name}" not in self.aabbs.keys():
             aabb = self.get_aabb(mesh, mesh_name)
         else:
@@ -422,8 +421,8 @@ class Project(Scene3D):
             # self.addShape(plane, f"corner_plane_min_{i}")
 
 
-        points_of_aabb = U.get_all_points_of_cuboid(aabb)
-        lines_of_aabb = U.get_all_lines_of_cuboid(aabb)
+        points_of_aabb = aabb.get_all_points()
+        lines_of_aabb = aabb.get_all_lines()
         
         # Get the intersection points of the corner planes with the AABB
         for i, (plane, params) in enumerate(corners_dict.items()):
@@ -441,7 +440,7 @@ class Project(Scene3D):
 
                         intersection_point = U.intersect_line_plane(p1, p2, plane_normal, plane_d)
                         if intersection_point is not None:
-                            if U.check_point_in_cuboid(intersection_point, aabb):
+                            if aabb.check_point_in_cuboid(intersection_point):
                                 intersection_points.append(intersection_point)
                                 
 

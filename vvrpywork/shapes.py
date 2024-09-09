@@ -19,6 +19,7 @@ from shapely import MultiPoint, concave_hull
 from typing import Annotated
 
 from vvrpywork.scene import Scene2D, Scene3D
+from vvrpywork.constants import Color
 
 # Type Aliases
 NDArray = np.ndarray
@@ -2212,6 +2213,7 @@ class Sphere3D(Shape):
         '''
         return (self.x - point.x) ** 2 + (self.y - point.y) ** 2 + (self.z - point.z) ** 2 <= self.radius ** 2
 
+# Added some methods to the class
 class Cuboid3D(Shape):
     '''A class used to represent a cuboid in 3D space.
     
@@ -2472,6 +2474,85 @@ class Cuboid3D(Shape):
         self._x_max += x
         self._y_max += y
         self._z_max += z
+    
+    # My adddition
+    def get_all_points(self) -> List[Point3D]:
+        '''Returns all the corners of the cuboid.
+        
+        Returns all the corners of the cuboid as a list of `Point3D`
+        '''
+    
+        # Top max and bottom min points of the cuboid
+        max_point = np.array([self.x_max, self.y_max, self.z_max])
+        min_point = np.array([self.x_min, self.y_min, self.z_min])
+        
+        # Cuboid diamensions
+        x_length = max_point[0] - min_point[0]
+        z_length = max_point[2] - min_point[2]
+        
+        # Get all the corners of the cuboid
+        bottom_corners = [Point3D([min_point[0], min_point[1], min_point[2]], color=Color.CYAN), 
+                        Point3D([min_point[0] +x_length, min_point[1], min_point[2]], color=Color.GREY), 
+                        Point3D([min_point[0] +x_length, min_point[1], min_point[2]+z_length], color=Color.ORANGE), 
+                        Point3D([min_point[0], min_point[1], min_point[2]+z_length], color=Color.GREEN)]
+        top_corners = [Point3D([max_point[0], max_point[1], max_point[2]], color=Color.RED), 
+                    Point3D([max_point[0] - x_length, max_point[1], max_point[2]], color=Color.YELLOW), 
+                    Point3D([max_point[0] -x_length, max_point[1], max_point[2]-z_length], color=Color.MAGENTA), 
+                    Point3D([max_point[0], max_point[1], max_point[2]-z_length], color=Color.BLACK)]
+        
+        # Combine the bottom and top corners
+        corners = bottom_corners + top_corners
+        return corners
+    
+    # My addition
+    def get_all_lines(self) -> LineSet3D:
+        '''Returns all the lines of a cuboid.
+
+        Args:
+            cuboid: The Cuboid3D object
+
+        Returns:
+            lines: A list of all the lines of the cuboid
+        '''
+        lines = LineSet3D()
+        # Get all the vertices of the cuboid
+        corners = self.get_all_points()
+
+        # Get all the lines of the cuboid
+        lines.add(Line3D(corners[0], corners[1]))
+        lines.add(Line3D(corners[1], corners[2]))
+        lines.add(Line3D(corners[2], corners[3]))
+        lines.add(Line3D(corners[3], corners[0]))
+        lines.add(Line3D(corners[4], corners[5]))
+        lines.add(Line3D(corners[5], corners[6]))
+        lines.add(Line3D(corners[6], corners[7]))
+        lines.add(Line3D(corners[7], corners[4]))
+        lines.add(Line3D(corners[0], corners[6]))
+        lines.add(Line3D(corners[1], corners[7]))
+        lines.add(Line3D(corners[2], corners[4]))
+        lines.add(Line3D(corners[3], corners[5]))
+
+        return lines
+    
+    # My addition
+    def check_point_in_cuboid(self, point) -> bool:
+        """
+        Check if a point is inside a cuboid.
+
+        Parameters:
+        - point: Point [x, y, z] to check.
+        - cuboid: Cuboid3D object representing the cuboid.
+
+        Returns:
+        - True if the point is inside the cuboid, False otherwise.
+        """
+        # Check if the point is inside the cuboid
+        if (self.x_min <= point[0] <= self.x_max and
+            self.y_min <= point[1] <= self.y_max and
+            self.z_min<= point[2] <= self.z_max):
+            return True
+        else:
+            return False
 
 class Cuboid3DGeneralized(Shape):
     '''A class used to represent a cuboid in 3D space.
@@ -3251,6 +3332,7 @@ class Label3D(Shape):
     def color(self, color:ColorType):
         self._color = [*color, 1] if len(color) == 3 else [*color]
 
+# My addition
 class Triangle3D(Mesh3D):
     '''A class used to represent a triangle in 3D space.'''
 
