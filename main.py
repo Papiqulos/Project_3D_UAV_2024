@@ -56,13 +56,10 @@ class Project(Scene3D):
         # Dictionary to store the collision meshes (AABBs)
         self.collision_meshes_a = {}
 
-        # Dictionary to store the collision meshes (Convex Hulls)
-        self.collision_meshes_b = {}
+        # Dictionary to store the collision points
+        self.collision_points = {}
 
-        # Dictionary to store the collision meshes (OBBs or 14-DOPs)
-        self.collision_meshes_c = {}
-
-        # Dictionary to store all the misc geometries(For testing mostly, not used)
+        # Dictionary to store all the misc geometries(For the labels and temporary geometries for testing)
         self.misc_geometries = {}
 
         # Dimension of the landing pad
@@ -79,9 +76,10 @@ class Project(Scene3D):
         C: Toggle convex hulls\n\
         A: Toggle AABBs\n\
         K: Toggle k-DOPs\n\
-        N: Toggle Collisions(AABBs)\n\
-        L: Toggle Collisions(Convex Hulls)\n\
-        M: Toggle Collisions(14-DOPs)\n\n")
+        N: Check Collisions(AABBs)\n\
+        L: Check Collisions(Convex Hulls)\n\
+        M: Check Collisions(14-DOPs)\n\
+        V: Check Collisions and Show Collision Points(Mesh3Ds)\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -158,26 +156,21 @@ class Project(Scene3D):
                     for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                             if mesh_name > mesh_name2:
-                                print(f"Collision between {mesh_name} and {mesh_name2} using the AABBs: {self.collision_detection_a(mesh, mesh_name, mesh2, mesh_name2)}")
-
-        
+                                if self.collision_detection_a(mesh, mesh_name, mesh2, mesh_name2):
+                                    print(f"Collision between {mesh_name} and {mesh_name2} using the AABBs")
+ 
         if symbol == Key.L:
             if not self.meshes:
                 self.print("No drones to show collisions for.")
                 return
 
             if self.meshes:
-                if self.collision_meshes_b:
-
-                    for collision_mesh_name, _ in self.collision_meshes_b.items():
-                        self.removeShape(collision_mesh_name)
-                    self.collision_meshes_b = {}
-
-                else:
-                    for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
-                        for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
-                            if mesh_name > mesh_name2:
-                                print(f"Collision between {mesh_name} and {mesh_name2} using the Convex Hulls: {self.collision_detection_b(mesh, mesh2)}")
+                
+                for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+                    for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                        if mesh_name > mesh_name2:
+                            if self.collision_detection_b(mesh, mesh2):
+                                print(f"Collision between {mesh_name} and {mesh_name2} using the Convex Hulls")
         
         if symbol == Key.M:
             if not self.meshes:
@@ -185,18 +178,28 @@ class Project(Scene3D):
                 return
 
             if self.meshes:
-                if self.collision_meshes_c:
+                for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+                    for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                        if mesh_name > mesh_name2:
+                            if self.collision_detection_c(mesh, mesh_name, mesh2, mesh_name2):
+                                print(f"Collision between {mesh_name} and {mesh_name2} using the 14-DOPs")
 
-                    for collision_mesh_name, _ in self.collision_meshes_c.items():
-                        self.removeShape(collision_mesh_name)
-                    self.collision_meshes_c = {}
+        if symbol == Key.V:
+            if not self.meshes:
+                self.print("No drones to show collisions for.")
+                return
 
+            if self.meshes:
+                if self.collision_points:
+                    for collision_point_name, _ in self.collision_points.items():
+                        self.removeShape(collision_point_name)
+                    self.collision_points = {}
                 else:
                     for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                             if mesh_name > mesh_name2:
-                                print(f"Collision between {mesh_name} and {mesh_name2} using the 14-DOPs: {self.collision_detection_c(mesh, mesh_name, mesh2, mesh_name2)}")
-                        
+                                if self.collision_detection_d(mesh, mesh_name, mesh2, mesh_name2):
+                                    print(f"Collision between {mesh_name} and {mesh_name2} using the Mesh3D")   
                            
     def reset_sliders(self):
         self.set_slider_value(0, 0.2)
@@ -650,6 +653,35 @@ class Project(Scene3D):
                 return False  # No intersection if separated along this axis
         
         return True
+    
+    def collision_detection_d(self, mesh1:Mesh3D, mesh_name1:str, mesh2:Mesh3D, mesh_name2:str) -> bool:
+        '''Collision detection using the meshes themselves and visualizing the points.
+        
+        Args:
+            - mesh1: The first mesh
+            - mesh_name1: The name of the first mesh
+            - mesh2: The second mesh
+            - mesh_name2: The name of the second mesh
+            
+        Returns:
+            - True if the meshes intersect, False otherwise'''
+
+
+        # Get the collision points
+        points  = U.get_collision_points(mesh1, mesh2)
+
+        # Add the collision points to the scene
+        for i, point in enumerate(points):
+            point = Point3D(point, color=Color.CYAN, size=1)
+            self.collision_points[f"col_point{mesh_name1}_{mesh_name2}_{i}"] = point
+            self.addShape(point, f"col_point{mesh_name1}_{mesh_name2}_{i}")
+            
+
+        # Check for collision
+        return U.collision(mesh1, mesh2)
+    
+
+    
         
         
 

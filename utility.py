@@ -400,7 +400,31 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
     collision_manager.add_object("trimesh1", trimesh1)
     collision_manager.add_object("trimesh2", trimesh2)
 
+
     return collision_manager.in_collision_internal()
+
+
+def get_collision_points(mesh1:Mesh3D, mesh2:Mesh3D) -> np.ndarray:
+    """Get the collision points between two meshes using trimesh library.
+
+    Args:
+    - mesh1: First mesh
+    - mesh2: Second mesh
+
+    Returns:
+    - points: List of collision points
+    """
+    trimesh1 =  trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
+    trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.triangles)
+    collision_manager = trimesh.collision.CollisionManager()
+    collision_manager.add_object("trimesh1", trimesh1)
+    collision_manager.add_object("trimesh2", trimesh2)
+
+    _, point_objs = collision_manager.in_collision_internal(return_data=True)
+    points = np.array([point_obj.point for point_obj in point_objs])
+
+    return points
+
 
 
 
