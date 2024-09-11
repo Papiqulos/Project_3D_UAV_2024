@@ -1,11 +1,13 @@
 import numpy as np
 import open3d as o3d
 import numpy as np
+from vvrpywork.constants import Color
 from vvrpywork.shapes import (
     Point3D, Mesh3D
 )
 from itertools import combinations
 import trimesh
+from kdnode import KdNode
 
 
 def rSubset(arr, r):
@@ -294,6 +296,29 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
+# Not used
+def get_nearest_point(self, point:np.ndarray, mesh:Mesh3D) -> Point3D:
+        '''Get the nearest point to a given point on the mesh.
+
+        Args:
+            point
+            mesh 
+
+        Returns:
+            nearest_point
+        '''
+        # Construct the k-d tree from the mesh vertices
+        kd_tree = KdNode.build_kd_node(np.array(mesh.vertices))
+
+        # Convert the point to Point3D object
+        point = Point3D(np.array(point), color=Color.BLACK, size=3)
+        # self.addShape(point, f"point{random.randint(0, 1000)}")
+
+        nearest_node = KdNode.nearestNeighbor(point, kd_tree)
+        nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
+
+        return nearest_point
+
 def get_convex_hull_of_pcd(points:np.ndarray) -> Mesh3D:
     '''Creates a triangle mesh from a set of points by creating the convex hull of the points.'''
     # Create Open3D PointCloud object
@@ -402,7 +427,6 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
 
 
     return collision_manager.in_collision_internal()
-
 
 def get_collision_points(mesh1:Mesh3D, mesh2:Mesh3D) -> np.ndarray:
     """Get the collision points between two meshes using trimesh library.
