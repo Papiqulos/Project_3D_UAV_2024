@@ -4,6 +4,14 @@ import numpy as np
 from vvrpywork.shapes import (
     Point3D, Mesh3D
 )
+from itertools import combinations
+import trimesh
+
+
+def rSubset(arr, r):
+    # return list of all subsets of length r
+    # to deal with duplicate subsets use set(list(combinations(arr, r)))
+    return set(list(combinations(arr, r)))
 
 def default_plane(size:float=1.0) -> o3d.geometry.TriangleMesh:
     '''
@@ -266,6 +274,7 @@ def o3d_to_mesh(o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
         mesh = Mesh3D()
         mesh.vertices = np.array(o3d_mesh.vertices)
         mesh.triangles = np.array(o3d_mesh.triangles)
+        mesh.vertex_colors = np.array(o3d_mesh.vertex_colors)
 
         return mesh
     
@@ -281,6 +290,7 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
     o3d_mesh = o3d.geometry.TriangleMesh()
     o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
     o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
+    o3d_mesh.vertex_colors = o3d.utility.Vector3dVector(mesh.vertex_colors)
 
     return o3d_mesh
 
@@ -336,6 +346,62 @@ def get_random_rotation_matrix(deflection=1.0, randnums=None):
     
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     return M
+
+def change_colour(mesh:Mesh3D, colours:np.ndarray) -> Mesh3D:
+    
+    # Convert the mesh to an Open3D mesh
+    o3d_mesh = mesh_to_o3d(mesh)
+
+    o3d_mesh.vertex_colors = o3d.utility.Vector3dVector(colours)
+    
+    return o3d_to_mesh(o3d_mesh)
+
+def intersect_cuboids(cuboid_a, cuboid_b):
+    """
+    Computes the intersection cuboid formed by two colliding cuboids, if any.
+
+    Parameters:
+    - corners_a: A numpy array of shape (8, 3) representing the 8 corners of the first cuboid.
+    - corners_b: A numpy array of shape (8, 3) representing the 8 corners of the second cuboid.
+
+    Returns:
+    - intersect_min: A numpy array representing the minimum coordinates of the intersection cuboid.
+    - intersect_max: A numpy array representing the maximum coordinates of the intersection cuboid.
+    """
+    # Find min and max coordinates for both cuboids
+    min_a, max_a = np.array([cuboid_a.x_min, cuboid_a.y_min, cuboid_a.z_min]), np.array([cuboid_a.x_max, cuboid_a.y_max, cuboid_a.z_max])
+    min_b, max_b = np.array([cuboid_b.x_min, cuboid_b.y_min, cuboid_b.z_min]), np.array([cuboid_b.x_max, cuboid_b.y_max, cuboid_b.z_max])
+    
+    # Compute the min and max coordinates of the intersection cuboid
+    intersect_min = np.maximum(min_a, min_b)  # Take the maximum of the minimums
+    intersect_max = np.minimum(max_a, max_b)  # Take the minimum of the maximums
+
+    # Check if there is an intersection (if the min coordinates are less than the max coordinates)
+    if np.all(intersect_min <= intersect_max):
+        return intersect_min, intersect_max
+    else:
+        # print("The cuboids do not intersect.")
+        return None, None
+    
+def collision(mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
+    """Check if two meshes are in collision using trimesh library.
+    
+    Args:
+    - mesh1: First mesh
+    - mesh2: Second mesh
+    
+    Returns:
+    - True if the meshes are in collision, False otherwise
+    """
+
+    trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
+    trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.triangles)
+    collision_manager = trimesh.collision.CollisionManager()
+    collision_manager.add_object("trimesh1", trimesh1)
+    collision_manager.add_object("trimesh2", trimesh2)
+
+    return collision_manager.in_collision_internal()
+
 
 
 

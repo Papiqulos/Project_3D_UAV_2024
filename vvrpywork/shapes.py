@@ -2476,7 +2476,7 @@ class Cuboid3D(Shape):
         self._z_max += z
     
     # My adddition
-    def get_all_points(self) -> List[Point3D]:
+    def get_all_points(self, lst=False) -> List[Point3D]|List[NDArray3]:
         '''Returns all the corners of the cuboid in a list of Point3D objects.'''
     
         # Top max and bottom min points of the cuboid
@@ -2499,6 +2499,10 @@ class Cuboid3D(Shape):
         
         # Combine the bottom and top corners
         corners = bottom_corners + top_corners
+
+        # Transform the corners to numpy arrays
+        if lst:
+            corners = [np.array([corner.x, corner.y, corner.z]) for corner in corners]
         return corners
     
     # My addition

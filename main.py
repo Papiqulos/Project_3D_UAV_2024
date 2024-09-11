@@ -8,6 +8,7 @@ from vvrpywork.shapes import (
 )
 import heapq
 import utility as U
+import trimesh
 
 
 WIDTH, HEIGHT = 1800, 900
@@ -37,7 +38,7 @@ class Project(Scene3D):
         # Dictionary to store the meshes
         self.meshes = {}
 
-        # Dictionary to store the rotation matrices of the drones
+        # Dictionary to store the rotation matrices of the drones(Not used)
         self.rotation_matrices = {}
 
         # Dictionary to store the planes
@@ -49,10 +50,19 @@ class Project(Scene3D):
         # Dictionary to store the axis-aligned bounding boxes (AABBs)
         self.aabbs = {}
 
-        # Dictionary to store the k-discrete oriented polytopes (k-DOPs)
+        # Dictionary to store the k-discrete oriented polytopes (14-DOPs)
         self.kdops = {}
 
-        # Dictionary to store all the misc geometries
+        # Dictionary to store the collision meshes (AABBs)
+        self.collision_meshes_a = {}
+
+        # Dictionary to store the collision meshes (Convex Hulls)
+        self.collision_meshes_b = {}
+
+        # Dictionary to store the collision meshes (OBBs or 14-DOPs)
+        self.collision_meshes_c = {}
+
+        # Dictionary to store all the misc geometries(For testing mostly, not used)
         self.misc_geometries = {}
 
         # Dimension of the landing pad
@@ -68,7 +78,10 @@ class Project(Scene3D):
         S: Show drones in random positions\n\
         C: Toggle convex hulls\n\
         A: Toggle AABBs\n\
-        K: Toggle k-DOPs\n\n")
+        K: Toggle k-DOPs\n\
+        N: Toggle Collisions(AABBs)\n\
+        L: Toggle Collisions(Convex Hulls)\n\
+        M: Toggle Collisions(14-DOPs)\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -123,10 +136,70 @@ class Project(Scene3D):
                     self.kdops = {}
                 else:
                     for mesh_name, mesh in self.meshes.items():
-                        self.get_14dop(mesh, mesh_name)
+                        self.show_14dop(mesh, mesh_name)
+        
+        if symbol == Key.N:
+            if not self.meshes:
+                self.print("No drones to show collisions for.")
+                return
+
+            if self.meshes:
+                if self.collision_meshes_a:
+
+                    for collision_mesh_name, _ in self.collision_meshes_a.items():
+                        self.removeShape(collision_mesh_name)
+                    self.collision_meshes_a = {}
+
+                    for label_name, _ in self.misc_geometries.items(): 
+                        if "inter_cuboid" in label_name:
+                            self.removeShape(label_name)
+
+                else:
+                    for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+                        for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                            if mesh_name > mesh_name2:
+                                print(f"Collision between {mesh_name} and {mesh_name2} using the AABBs: {self.collision_detection_a(mesh, mesh_name, mesh2, mesh_name2)}")
+
+        
+        if symbol == Key.L:
+            if not self.meshes:
+                self.print("No drones to show collisions for.")
+                return
+
+            if self.meshes:
+                if self.collision_meshes_b:
+
+                    for collision_mesh_name, _ in self.collision_meshes_b.items():
+                        self.removeShape(collision_mesh_name)
+                    self.collision_meshes_b = {}
+
+                else:
+                    for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+                        for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                            if mesh_name > mesh_name2:
+                                print(f"Collision between {mesh_name} and {mesh_name2} using the Convex Hulls: {self.collision_detection_b(mesh, mesh2)}")
+        
+        if symbol == Key.M:
+            if not self.meshes:
+                self.print("No drones to show collisions for.")
+                return
+
+            if self.meshes:
+                if self.collision_meshes_c:
+
+                    for collision_mesh_name, _ in self.collision_meshes_c.items():
+                        self.removeShape(collision_mesh_name)
+                    self.collision_meshes_c = {}
+
+                else:
+                    for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+                        for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                            if mesh_name > mesh_name2:
+                                print(f"Collision between {mesh_name} and {mesh_name2} using the 14-DOPs: {self.collision_detection_c(mesh, mesh_name, mesh2, mesh_name2)}")
+                        
                            
     def reset_sliders(self):
-        self.set_slider_value(0, 0.1)
+        self.set_slider_value(0, 0.2)
     
     def on_slider_change(self, slider_id, value):
 
@@ -134,19 +207,25 @@ class Project(Scene3D):
             self.num_of_drones = int(10 * value)
 
     def clear_scene(self) -> None:
-        '''Clear all the drones from the scene.'''
+        '''Clear the scene.'''
         for mesh_name, _ in self.meshes.items():
             self.removeShape(mesh_name)
             self.removeShape(f"convex_hull_{mesh_name}")
             self.removeShape(f"aabb_{mesh_name}")
             self.removeShape(f"14dop_{mesh_name}")
+
         for name, _ in self.misc_geometries.items():
             self.removeShape(name)
+
+        for name, _ in self.collision_meshes_a.items():
+            self.removeShape(name)
+
         self.misc_geometries = {}
         self.meshes = {}
         self.convex_hulls = {}
         self.aabbs = {}
         self.kdops = {}
+        self.collision_meshes_a = {}
     
     def landing_pad(self, size:float) -> None:
         '''Construct an NxN landing pad.
@@ -203,10 +282,12 @@ class Project(Scene3D):
                                        random.uniform(0.5, trans_thresold), 
                                        random.uniform(-trans_thresold, trans_thresold)])
         
-        # Randomly rotate the mesh
+        # No rotation
         # center = np.array([0, 0, 0])
-        # dir = np.array([random.uniform(0, rotate_thresold), random.uniform(0, rotate_thresold), random.uniform(0, rotate_thresold)])
+        # dir = np.array([0, 1, 0])
         # rotation_matrix = get_rotation_matrix(center, dir)
+
+        # Randomly rotate the mesh
         rotation_matrix = U.get_random_rotation_matrix()
 
         # Apply the translation and rotation to the vertices
@@ -325,12 +406,18 @@ class Project(Scene3D):
 
         return nearest_point
     
-    def get_14dop(self, mesh: Mesh3D, mesh_name:str) -> None:
+    def get_14dop(self, mesh: Mesh3D, mesh_name:str, ext:bool= False) -> Mesh3D|tuple:
         '''Computes the 14-discrete oriented polytope (k-DOP) of a mesh.
         
         Args:
             mesh: The mesh
             mesh_name: The name of the mesh
+            ext: Whether to return the 14-DOP with the maximum and minimum extents or not
+        
+        Returns:
+            ch_mesh: The 14-DOP
+            max_extents: The maximum extents of the 14-DOP
+            min_extents: The minimum extents of the 14-DOP
         '''
         global aabb
         vertices = np.array(mesh.vertices)
@@ -365,6 +452,10 @@ class Project(Scene3D):
 
         # Distances for each direction
         dot_products = np.dot(vertices, directions.T)
+
+        # Get the maximum and minimum dot products
+        max_extents = np.max(dot_products, axis=0)
+        min_extents = np.min(dot_products, axis=0)
         
         # Get the indices of the maximum and minimum dot products
         max_indices = np.argmax(dot_products, axis=0)
@@ -393,7 +484,6 @@ class Project(Scene3D):
 
         # List to store the intersection points
         intersection_points = []
-
 
         # Get the plane equations for the faces and corners
         for i, (dir, vertex) in enumerate(faces_map.items()):
@@ -435,7 +525,6 @@ class Project(Scene3D):
         for i, (plane, params) in enumerate(corners_dict.items()):
             # if i == 15:
                 # self.addShape(plane, f"corner_plane_max_{i}")
-                tri_points = []
                 for j, line in enumerate(lines_of_aabb.lines):
                     # if j == 7:
                         p1 = points_of_aabb[line[0]]
@@ -452,14 +541,115 @@ class Project(Scene3D):
                                 
 
         # Visualize the intersection points
-        print(f"inter points found : {len(intersection_points)}")
+        # print(f"inter points found : {len(intersection_points)}")
 
         # Make a convex hull of the intersection points
         intersection_points = np.array(intersection_points)
         ch_mesh = U.get_convex_hull_of_pcd(intersection_points)
-        self.addShape(ch_mesh, f"14dop_{mesh_name}")
-        self.kdops[f"14dop_{mesh_name}"] = ch_mesh
 
+        # Store the 14-DOP in the dictionary
+        self.kdops[f"14dop_{mesh_name}"] = ch_mesh
+        
+        if ext:
+            return ch_mesh, max_extents, min_extents
+        else:
+            return ch_mesh
+
+    def show_14dop(self, mesh:Mesh3D, mesh_name:str) -> None:
+        '''Computes the 14-discrete oriented polytope (k-DOP) of a mesh and shows it in the scene.
+        
+        Args:
+            mesh: The mesh
+            mesh_name: The name of the mesh  
+        '''
+        
+        # Create the 14-DOP if it does not exist
+        if f"14dop_{mesh_name}" not in self.kdops.keys():
+            kdop = self.get_14dop(mesh, mesh_name)
+        
+        # Add the 14-DOP to the scene
+        self.addShape(kdop, f"14dop_{mesh_name}")
+
+    def collision_detection_a(self, mesh1:Mesh3D, mesh1_name:str, mesh2:Mesh3D, mesh2_name:str) -> bool:
+        '''Collision detection using the AABBs.
+        
+        Args:
+            - mesh1: The first mesh
+            - mesh1_name: The name of the first mesh
+            - mesh2: The second mesh
+            - mesh2_name: The name of the second mesh
+            
+        Returns:
+            - inter: True if the meshes intersect, False otherwise'''
+
+        # Get the AABBs of the meshes if they do not exist
+        if f"aabb_{mesh1}" not in self.aabbs.keys():
+            self.get_aabb(mesh1, mesh1)
+        aabb1 = self.aabbs[f"aabb_{mesh1}"]
+
+        if f"aabb_{mesh2}" not in self.aabbs.keys():
+            self.get_aabb(mesh2, mesh2)
+        aabb2 = self.aabbs[f"aabb_{mesh2}"]
+ 
+        # Find the intersecting cuboid of the two AABBs
+        inter_min, inter_max = U.intersect_cuboids(aabb1, aabb2)
+        inter = False
+        if inter_min is not None and inter_max is not None:
+            inter = True
+            
+            # Visualize the intersecting cuboid
+
+            # A label for the intersecting cuboid
+            label = Label3D(inter_min, f"inter_cuboid_{mesh1_name}_{mesh2_name}", color=Color.BLACK)
+            self.addShape(label, f"label_inter_cuboid_{mesh1_name}_{mesh2_name}")
+            self.misc_geometries[f"label_inter_cuboid_{mesh1_name}_{mesh2_name}"] = label
+
+            # The intersecting cuboid
+            inter_cuboid = Cuboid3D(p1=inter_min, p2=inter_max, color=Color.CYAN, filled=False)
+            self.addShape(inter_cuboid, f"inter_cuboid_{mesh1_name}_{mesh2_name}")
+            self.collision_meshes_a[f"inter_cuboid_{mesh1_name}_{mesh2_name}"] = inter_cuboid
+        
+        return inter
+
+    def collision_detection_b(self, mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
+        '''Collision detection using the Convex Hulls.
+        
+        Args:
+            - mesh1: The first mesh
+            - mesh2: The second mesh
+            
+        Returns:
+            - True if the meshes intersect, False otherwise'''
+        
+        ch1 = self.get_convex_hull(mesh1)
+        ch2 = self.get_convex_hull(mesh2)
+
+        return U.collision(ch1, ch2)
+
+    def collision_detection_c(self, mesh1:Mesh3D, mesh_name1:str, mesh2:Mesh3D, mesh_name2:str) -> bool:
+        '''Collision detection using the 14-DOPs.
+        
+        Args:
+            - mesh1: The first mesh
+            - mesh_name1: The name of the first mesh
+            - mesh2: The second mesh
+            - mesh_name2: The name of the second mesh
+            
+        Returns:
+            - True if the meshes intersect, False otherwise'''
+
+        # Get the minimum and maximum extents of the 14-DOPs
+        _, max1, min1 = self.get_14dop(mesh1, mesh_name1, ext=True)
+        _, max2, min2 = self.get_14dop(mesh2, mesh_name2, ext=True)
+
+        k = len(min1)  # Number of axes (directions)
+
+        # Check if there is any separation along any of the k axes
+        for i in range(k):
+            if max1[i] < min2[i] or max2[i] < min1[i]:
+                return False  # No intersection if separated along this axis
+        
+        return True
         
         
 
