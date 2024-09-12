@@ -1,27 +1,41 @@
 import numpy as np
 import random
+import utility as U
+import time
 from vvrpywork.constants import Key, Color
-from vvrpywork.scene import Scene3D
+from vvrpywork.scene import Scene3D, get_rotation_matrix
 from vvrpywork.shapes import (
     Point3D, Cuboid3D,
     Mesh3D, Label3D
 )
-import utility as U
+
 
 
 
 WIDTH, HEIGHT = 1800, 900
 
 COLOURS = [Color.RED, 
-                   Color.GREEN, 
-                   Color.BLUE, 
-                   Color.YELLOW, 
-                   Color.BLACK, 
-                   Color.WHITE, 
-                   Color.GRAY, 
-                   Color.CYAN, 
-                   Color.MAGENTA, 
-                   Color.ORANGE]
+        Color.GREEN, 
+        Color.BLUE, 
+        Color.YELLOW, 
+        Color.BLACK, 
+        Color.WHITE, 
+        Color.GRAY, 
+        Color.CYAN, 
+        Color.MAGENTA, 
+        Color.ORANGE]
+
+DRONES = ["models/F52.obj", 
+          "models/Helicopter.obj", 
+          "models/quadcopter_scifi.obj",
+          "models/v22_osprey.obj"]
+
+SPEEDS = [0.3, 
+          0.1, 
+          0.5, 
+          0.2]
+
+SPEED_MAP = {DRONES[i]: SPEEDS[i] for i in range(len(DRONES))}
 
 COLOURS_BW = [Color.BLACK, Color.WHITE]
 
@@ -37,11 +51,11 @@ class Project(Scene3D):
         # Dictionary to store the meshes
         self.meshes = {}
 
-        # Dictionary to store the rotation matrices of the drones(Not used)
-        self.rotation_matrices = {}
+        # Dictionary to store the moving meshes
+        self.moving_meshes = {}
 
         # Dictionary to store the planes
-        self.planes = {}
+        self.landing_pads = {}
 
         # Dictionary to store the convex hulls
         self.convex_hulls = {}
@@ -52,14 +66,18 @@ class Project(Scene3D):
         # Dictionary to store the k-discrete oriented polytopes (14-DOPs)
         self.kdops = {}
 
-        # Dictionary to store the collision meshes (AABBs)
-        self.collision_meshes_a = {}
+        # Dictionary to store the collision AABBs
+        self.collision_aabbs = {}
 
         # Dictionary to store the collision points
         self.collision_points = {}
 
         # Dictionary to store all the misc geometries(For the labels and temporary geometries for testing)
         self.misc_geometries = {}
+
+        # Simulation variables
+        self.dt = 0.01
+        self.paused = True
 
         # Dimension of the landing pad
         self.N = 5
@@ -78,7 +96,8 @@ class Project(Scene3D):
         N: Check Collisions(AABBs)\n\
         L: Check Collisions(Convex Hulls)\n\
         M: Check Collisions(14-DOPs)\n\
-        V: Check Collisions and Show Collision Points(Mesh3Ds)\n\n")
+        V: Check Collisions and Show Collision Points(Mesh3Ds)\n\
+        T: Simulate\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -141,11 +160,11 @@ class Project(Scene3D):
                 return
 
             if self.meshes:
-                if self.collision_meshes_a:
+                if self.collision_aabbs:
 
-                    for collision_mesh_name, _ in self.collision_meshes_a.items():
+                    for collision_mesh_name, _ in self.collision_aabbs.items():
                         self.removeShape(collision_mesh_name)
-                    self.collision_meshes_a = {}
+                    self.collision_aabbs = {}
 
                     for label_name, _ in self.misc_geometries.items(): 
                         if "inter_cuboid" in label_name:
@@ -156,7 +175,7 @@ class Project(Scene3D):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                             if mesh_name > mesh_name2:
                                 if self.collision_detection_aabbs(mesh, mesh_name, mesh2, mesh_name2):
-                                    print(f"Collision between {mesh_name} and {mesh_name2} using the AABBs")
+                                    self.print(f"-AABB collision between {mesh_name} and {mesh_name2}")
  
         if symbol == Key.L:
             if not self.meshes:
@@ -169,7 +188,7 @@ class Project(Scene3D):
                     for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                         if mesh_name > mesh_name2:
                             if self.collision_detection_chs(mesh, mesh2):
-                                print(f"Collision between {mesh_name} and {mesh_name2} using the Convex Hulls")
+                                self.print(f"-Convex Hull collision between {mesh_name} and {mesh_name2}")
         
         if symbol == Key.M:
             if not self.meshes:
@@ -181,7 +200,7 @@ class Project(Scene3D):
                     for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                         if mesh_name > mesh_name2:
                             if self.collision_detection_kdops(mesh, mesh_name, mesh2, mesh_name2):
-                                print(f"Collision between {mesh_name} and {mesh_name2} using the 14-DOPs")
+                                self.print(f"-14-DOP collision between {mesh_name} and {mesh_name2}")
 
         if symbol == Key.V:
             if not self.meshes:
@@ -198,10 +217,14 @@ class Project(Scene3D):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
                             if mesh_name > mesh_name2:
                                 if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
-                                    print(f"Collision between {mesh_name} and {mesh_name2} using the Mesh3D")   
-                           
+                                    self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")   
+
+        if symbol == Key.T:
+            self.paused = not self.paused
+            
+
     def reset_sliders(self):
-        self.set_slider_value(0, 0.2)
+        self.set_slider_value(0, 0.1)
     
     def on_slider_change(self, slider_id, value):
 
@@ -219,16 +242,20 @@ class Project(Scene3D):
         for name, _ in self.misc_geometries.items():
             self.removeShape(name)
 
-        for name, _ in self.collision_meshes_a.items():
+        for name, _ in self.collision_aabbs.items():
             self.removeShape(name)
 
-        self.misc_geometries = {}
+        for name, _ in self.collision_points.items():
+            self.removeShape(name)
+       
         self.meshes = {}
         self.convex_hulls = {}
         self.aabbs = {}
         self.kdops = {}
-        self.collision_meshes_a = {}
-    
+        self.misc_geometries = {}
+        self.collision_aabbs = {}
+        self.collision_points = {}
+        
     def landing_pad(self, size:float) -> None:
         '''Construct an NxN landing pad.
         
@@ -247,22 +274,27 @@ class Project(Scene3D):
                 
                 plane_id = f"plane_{i}_{j}"
                 self.addShape(plane, plane_id)
-                self.planes[plane_id] = plane
+                self.landing_pads[plane_id] = plane
         
-    def show_drones(self, num_drones:int = 10) -> None:
+    def show_drones(self, num_drones:int = 10, rand_rot:bool = True) -> None:
         '''Show a certain number of drones in random positions.
 
         Args:
             num_drones: The number of drones
+            rand_rot: Whether to randomly rotate the drones
         '''
 
         for i in range(num_drones):
             colour = COLOURS[i%len(COLOURS)]
-            mesh = Mesh3D(path="models/Helicopter.obj", color=colour)
-            mesh = self.randomize_mesh(mesh, i, label=True)
+            drone_path = DRONES[i%len(DRONES)]
+            mesh = Mesh3D(path=drone_path, color=colour)
+            mesh = self.randomize_mesh(mesh, i, label=True, rand_rot=rand_rot)
             self.meshes[f"drone_{i}"] = mesh
 
-    def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0, label:bool = False) -> Mesh3D:
+        # Create a copy of the meshes to avoid modifying the original meshes
+        self.moving_meshes = self.meshes.copy()
+
+    def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0, label:bool = False, rand_rot:bool = True) -> Mesh3D:
         '''Fits the mesh into the unit sphere and randomly translates it and rotates it.
 
         Args:
@@ -270,6 +302,7 @@ class Project(Scene3D):
             drone_id: The ID of the drone
             trans_thresold: The translation threshold
             label: Whether to add a label to the drone
+            rand_rot: Whether to randomly rotate the drone
 
         Returns:
             mesh: The randomized mesh
@@ -284,24 +317,26 @@ class Project(Scene3D):
                                        random.uniform(0.5, trans_thresold), 
                                        random.uniform(-trans_thresold, trans_thresold)])
         
-        # No rotation
-        # center = np.array([0, 0, 0])
-        # dir = np.array([0, 1, 0])
-        # rotation_matrix = get_rotation_matrix(center, dir)
+        if rand_rot:
+            # Randomly rotate the mesh
+            rotation_matrix = U.get_random_rotation_matrix()
+        else:
+            # No rotation
+            center = np.array([0, 0, 0])
+            dir = np.array([0, 1, 0])
+            rotation_matrix = get_rotation_matrix(center, dir)
 
-        # Randomly rotate the mesh
-        rotation_matrix = U.get_random_rotation_matrix()
+        
 
         # Apply the translation and rotation to the vertices
-        self.rotation_matrices[f"rotation_matrix_{drone_id}"] = rotation_matrix
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
         mesh.vertices = transformed_vertices
 
         # Add the mesh to the scene
         if label:
             label = Label3D(translation_vector, f"drone_{drone_id}", color=Color.BLACK)
-            self.addShape(label, f"label_{drone_id}")
-            self.misc_geometries[f"label_{drone_id}"] = label
+            self.addShape(label, f"label_drone_{drone_id}")
+            self.misc_geometries[f"label_drone_{drone_id}"] = label
         self.addShape(mesh, f"drone_{drone_id}")
 
         return mesh
@@ -550,7 +585,7 @@ class Project(Scene3D):
         # Add the 14-DOP to the scene
         self.addShape(kdop, f"14dop_{mesh_name}")
 
-    def collision_detection_aabbs(self, mesh1:Mesh3D, mesh1_name:str, mesh2:Mesh3D, mesh2_name:str) -> bool:
+    def collision_detection_aabbs(self, mesh1:Mesh3D, mesh1_name:str, mesh2:Mesh3D, mesh2_name:str, vis:bool = True) -> bool:
         '''Collision detection using the AABBs.
         
         Args:
@@ -558,6 +593,7 @@ class Project(Scene3D):
             - mesh1_name: The name of the first mesh
             - mesh2: The second mesh
             - mesh2_name: The name of the second mesh
+            - vis: Whether to visualize the intersecting cuboid or not
             
         Returns:
             - inter: True if the meshes intersect, False otherwise'''
@@ -577,17 +613,18 @@ class Project(Scene3D):
         if inter_min is not None and inter_max is not None:
             inter = True
             
-            # Visualize the intersecting cuboid
+            if vis:
+                # Visualize the intersecting cuboid
 
-            # A label for the intersecting cuboid
-            label = Label3D(inter_min, f"inter_cuboid_{mesh1_name}_{mesh2_name}", color=Color.BLACK)
-            self.addShape(label, f"label_inter_cuboid_{mesh1_name}_{mesh2_name}")
-            self.misc_geometries[f"label_inter_cuboid_{mesh1_name}_{mesh2_name}"] = label
+                # A label for the intersecting cuboid
+                label = Label3D(inter_min, f"inter_cuboid_{mesh1_name}_{mesh2_name}", color=Color.BLACK)
+                self.addShape(label, f"label_inter_cuboid_{mesh1_name}_{mesh2_name}")
+                self.misc_geometries[f"label_inter_cuboid_{mesh1_name}_{mesh2_name}"] = label
 
-            # The intersecting cuboid
-            inter_cuboid = Cuboid3D(p1=inter_min, p2=inter_max, color=Color.CYAN, filled=False)
-            self.addShape(inter_cuboid, f"inter_cuboid_{mesh1_name}_{mesh2_name}")
-            self.collision_meshes_a[f"inter_cuboid_{mesh1_name}_{mesh2_name}"] = inter_cuboid
+                # The intersecting cuboid
+                inter_cuboid = Cuboid3D(p1=inter_min, p2=inter_max, color=Color.CYAN, filled=False)
+                self.addShape(inter_cuboid, f"inter_cuboid_{mesh1_name}_{mesh2_name}")
+                self.collision_aabbs[f"inter_cuboid_{mesh1_name}_{mesh2_name}"] = inter_cuboid
         
         return inter
 
@@ -642,20 +679,112 @@ class Project(Scene3D):
             
         Returns:
             - True if the meshes intersect, False otherwise'''
+        
 
+        # Check for collisions using the fastest (and least accurate) methods first
 
-        # Get the collision points
-        points  = U.get_collision_points(mesh1, mesh2)
+        # Least accurate and fastest
+        aabb_collision = self.collision_detection_aabbs(mesh1, mesh_name1, mesh2, mesh_name2, False)
+        if not aabb_collision:
+            return False
+        
+        kdop_collision = self.collision_detection_kdops(mesh1, mesh_name1, mesh2, mesh_name2)
+        if not kdop_collision:
+            return False
+        
+        ch_collision = self.collision_detection_chs(mesh1, mesh2)
+        if not ch_collision:
+            return False
+        
+        # Most accurate and slowest
+        mesh_collision, points = U.collision(mesh1, mesh2, return_points=True)
+        if not mesh_collision:
+            return False
+        
+        if mesh_collision:
 
+            if mesh_name1 in self.moving_meshes:
+                self.moving_meshes.pop(mesh_name1)
+
+            if mesh_name2 in self.moving_meshes:
+                self.moving_meshes.pop(mesh_name2)
+
+        # Clear the collision points if they exist
+        if self.collision_points:
+            for name, _ in self.collision_points.items():
+                self.removeShape(name)
+            self.collision_points = {}
+            
         # Add the collision points to the scene
         for i, point in enumerate(points):
             point = Point3D(point, color=Color.CYAN, size=1)
-            self.collision_points[f"col_point{mesh_name1}_{mesh_name2}_{i}"] = point
-            self.addShape(point, f"col_point{mesh_name1}_{mesh_name2}_{i}")
+            self.collision_points[f"col_point_{mesh_name1}_{mesh_name2}_{i}"] = point
+            self.addShape(point, f"col_point_{mesh_name1}_{mesh_name2}_{i}")
             
 
         # Check for collision
-        return U.collision(mesh1, mesh2)
+        return mesh_collision
+    
+    def on_idle(self):
+        if not self.paused:
+            if self.meshes:
+                self.simulate()
+                return
+            self.show_drones(self.num_of_drones, rand_rot=False)
+            return True
+        return False
+    
+    def move_drone(self, mesh:Mesh3D, mesh_name:str, speed:float) -> None:
+        '''Move the drone in a direction.
+        
+        Args:
+            - mesh: The mesh
+            - mesh_name: The name of the mesh
+        '''
+        translation_vector = np.array([0, 
+                                       0, 
+                                       speed])
+        
+        # Move the drone
+        mesh.vertices += translation_vector
+        self.updateShape(mesh_name, quick=True)
+
+        # Move the label
+        label = self.misc_geometries[f"label_{mesh_name}"]
+        label.x += translation_vector[0]
+        label.y += translation_vector[1]
+        label.z += translation_vector[2]
+        self.updateShape(f"label_{mesh_name}", quick=True)
+
+
+    def simulate(self):
+        ''' Simulate the scene.'''
+
+        
+        
+
+        for mesh_name, mesh in self.meshes.items():
+            # lst = list(moving_meshes.keys())
+            # print(lst)
+            if mesh_name in self.moving_meshes:
+                self.move_drone(mesh, mesh_name, SPEED_MAP[mesh.path]) 
+                  
+            # for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+            #     if mesh_name > mesh_name2:
+            #         if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
+                        
+            #             print(f"Collision between {mesh_name} and {mesh_name2} using the Mesh3D")
+
+            time.sleep(self.dt)
+            # Clear the collision points
+            # for name, _ in self.collision_points.items():
+            #     self.removeShape(name)
+            # self.collision_points = {}
+            
+            
+        
+
+        
     
 
     

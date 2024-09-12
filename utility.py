@@ -9,7 +9,7 @@ from itertools import combinations
 import trimesh
 from kdnode import KdNode
 
-
+# Not used
 def rSubset(arr, r):
     # return list of all subsets of length r
     # to deal with duplicate subsets use set(list(combinations(arr, r)))
@@ -408,15 +408,17 @@ def intersect_cuboids(cuboid_a, cuboid_b):
         # print("The cuboids do not intersect.")
         return None, None
     
-def collision(mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
+def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False) -> bool|tuple[bool, np.ndarray]:
     """Check if two meshes are in collision using trimesh library.
     
     Args:
     - mesh1: First mesh
     - mesh2: Second mesh
+    - points_flag: If True, return the collision points
     
     Returns:
     - True if the meshes are in collision, False otherwise
+    - points: List of collision points if points_flag is True
     """
 
     trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
@@ -425,29 +427,37 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D) -> bool:
     collision_manager.add_object("trimesh1", trimesh1)
     collision_manager.add_object("trimesh2", trimesh2)
 
+    if return_points:
+        collision, point_objs = collision_manager.in_collision_internal(return_data=True)
+        points = np.array([point_obj.point for point_obj in point_objs])
+        return collision, points
+    else:
+        return collision_manager.in_collision_internal()
+        
 
-    return collision_manager.in_collision_internal()
 
-def get_collision_points(mesh1:Mesh3D, mesh2:Mesh3D) -> np.ndarray:
-    """Get the collision points between two meshes using trimesh library.
+    
 
-    Args:
-    - mesh1: First mesh
-    - mesh2: Second mesh
+# def get_collision_points(mesh1:Mesh3D, mesh2:Mesh3D) -> np.ndarray:
+#     """Get the collision points between two meshes using trimesh library.
 
-    Returns:
-    - points: List of collision points
-    """
-    trimesh1 =  trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
-    trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.triangles)
-    collision_manager = trimesh.collision.CollisionManager()
-    collision_manager.add_object("trimesh1", trimesh1)
-    collision_manager.add_object("trimesh2", trimesh2)
+#     Args:
+#     - mesh1: First mesh
+#     - mesh2: Second mesh
 
-    _, point_objs = collision_manager.in_collision_internal(return_data=True)
-    points = np.array([point_obj.point for point_obj in point_objs])
+#     Returns:
+#     - points: List of collision points
+#     """
+#     trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
+#     trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.triangles)
+#     collision_manager = trimesh.collision.CollisionManager()
+#     collision_manager.add_object("trimesh1", trimesh1)
+#     collision_manager.add_object("trimesh2", trimesh2)
 
-    return points
+#     _, point_objs = collision_manager.in_collision_internal(return_data=True)
+#     points = np.array([point_obj.point for point_obj in point_objs])
+
+#     return points
 
 
 

@@ -2477,7 +2477,13 @@ class Cuboid3D(Shape):
     
     # My adddition
     def get_all_points(self, lst=False) -> List[Point3D]|List[NDArray3]:
-        '''Returns all the corners of the cuboid in a list of Point3D objects.'''
+        '''Returns all the corners of the cuboid in a list of Point3D objects.
+        
+        Args:
+            lst: If True, returns the corners as a list of numpy arrays.
+            
+        Returns:
+            A list of Point3D objects representing the corners of the cuboid.'''
     
         # Top max and bottom min points of the cuboid
         max_point = np.array([self.x_max, self.y_max, self.z_max])
@@ -2533,9 +2539,8 @@ class Cuboid3D(Shape):
         """
         Check if a point is inside a cuboid.
 
-        Parameters:
+        Args:
         - point: Point [x, y, z] to check.
-        - cuboid: Cuboid3D object representing the cuboid.
 
         Returns:
         - True if the point is inside the cuboid, False otherwise.
@@ -3078,6 +3083,7 @@ class LineSet3D(ShapeSet):
         ls = o3d.geometry.LineSet.create_from_triangle_mesh(tm)
         return LineSet3D(np.asarray(ls.points), np.asarray(ls.lines), width, color)
 
+# Small additions
 class Mesh3D(ShapeSet):
     '''A class used to represent a triangle mesh in 3D space.'''
 
@@ -3091,6 +3097,9 @@ class Mesh3D(ShapeSet):
             color: The color of the displayed mesh (RGB or RGBA).
         '''
         self._color = [*color, 1] if len(color) == 3 else [*color]
+
+        # My addition
+        self.path = path
 
         if path is not None:
             self._shape = o3d.io.read_triangle_mesh(path)
