@@ -44,7 +44,8 @@ class Project(Scene3D):
 
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Project", output=True, n_sliders=1)
-        
+
+        self.change_camera([0, 3, 7])
         self.printHelp()
         self.reset_sliders()
 
@@ -255,6 +256,7 @@ class Project(Scene3D):
         self.misc_geometries = {}
         self.collision_aabbs = {}
         self.collision_points = {}
+        self.moving_meshes = {}
         
     def landing_pad(self, size:float) -> None:
         '''Construct an NxN landing pad.
@@ -688,9 +690,9 @@ class Project(Scene3D):
         if not aabb_collision:
             return False
         
-        kdop_collision = self.collision_detection_kdops(mesh1, mesh_name1, mesh2, mesh_name2)
-        if not kdop_collision:
-            return False
+        # kdop_collision = self.collision_detection_kdops(mesh1, mesh_name1, mesh2, mesh_name2)
+        # if not kdop_collision:
+        #     return False
         
         ch_collision = self.collision_detection_chs(mesh1, mesh2)
         if not ch_collision:
@@ -701,20 +703,17 @@ class Project(Scene3D):
         if not mesh_collision:
             return False
         
+        # If the meshes intersect, remove them from the moving meshes
         if mesh_collision:
 
             if mesh_name1 in self.moving_meshes:
                 self.moving_meshes.pop(mesh_name1)
+                
 
             if mesh_name2 in self.moving_meshes:
                 self.moving_meshes.pop(mesh_name2)
+                
 
-        # Clear the collision points if they exist
-        if self.collision_points:
-            for name, _ in self.collision_points.items():
-                self.removeShape(name)
-            self.collision_points = {}
-            
         # Add the collision points to the scene
         for i, point in enumerate(points):
             point = Point3D(point, color=Color.CYAN, size=1)
@@ -756,30 +755,23 @@ class Project(Scene3D):
         label.z += translation_vector[2]
         self.updateShape(f"label_{mesh_name}", quick=True)
 
-
     def simulate(self):
-        ''' Simulate the scene.'''
-
-        
-        
-
+        '''Simulate the scene, moving the drones and stopping them if they collide.'''
         for mesh_name, mesh in self.meshes.items():
-            # lst = list(moving_meshes.keys())
-            # print(lst)
             if mesh_name in self.moving_meshes:
                 self.move_drone(mesh, mesh_name, SPEED_MAP[mesh.path]) 
                   
-            # for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
-            #     if mesh_name > mesh_name2:
-            #         if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
-                        
-            #             print(f"Collision between {mesh_name} and {mesh_name2} using the Mesh3D")
+            for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+
+                # If the meshes have been checked for collision, skip them
+                if f"col_point_{mesh_name}_{mesh_name2}_0" in self.collision_points:
+                    continue
+                if mesh_name > mesh_name2:
+                    if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
+                        self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
             time.sleep(self.dt)
-            # Clear the collision points
-            # for name, _ in self.collision_points.items():
-            #     self.removeShape(name)
-            # self.collision_points = {}
+            
             
             
         

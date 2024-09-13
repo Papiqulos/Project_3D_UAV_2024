@@ -181,10 +181,10 @@ class Scene3D:
 
         self.scene_widget.set_view_controls(gui.SceneWidget.Controls.ROTATE_CAMERA)
 
-        #set up camera
+        # set up camera
         bounds = self.scene_widget.scene.bounding_box
-        center = bounds.get_center()
-        self.scene_widget.look_at(center, center + [0, 0, 1.5], [0, 1, 0])
+        self.center = bounds.get_center()
+        self.scene_widget.look_at(self.center, self.center + [0, 0, 1.5], [0, 1, 0])
 
         self.scene_widget.scene.camera.set_projection(90, 1, 0.01, 3.75, rendering.Camera.FovType.Vertical)  # defaults except for near_plane
 
@@ -239,7 +239,14 @@ class Scene3D:
 
         self._shapeDict = {}
 
-    
+    def change_camera(self, new_center):
+        if isinstance(new_center, np.ndarray):
+            new_center = new_center
+        elif isinstance(new_center, (list, tuple)):
+            new_center = np.array(new_center)
+        self.center = new_center
+        self.scene_widget.look_at(self.center, self.center + [0, 0, 1.5], [0, 1, 0])
+
     def mainLoop(self):
         gui.Application.instance.run()
 
