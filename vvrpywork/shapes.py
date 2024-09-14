@@ -2274,6 +2274,8 @@ class Cuboid3D(Shape):
         self.width = width
         self._color = [*color, 1] if len(color) == 3 else [*color]
         self._filled = filled
+        # My addition
+        self.height = self._y_max - self._y_min
 
     def _addToScene(self, scene:Scene3D, name:None|str):
         name = str(id(self)) if name is None else name
@@ -2552,6 +2554,39 @@ class Cuboid3D(Shape):
             return True
         else:
             return False
+    
+    # My addition 
+    def check_mesh_in_cuboid(self, mesh:Mesh3D) -> bool:
+        """
+        Check if a mesh is inside a cuboid.
+
+        Args:
+        - mesh: Mesh3D object to check.
+
+        Returns:
+        - True if the mesh is inside the cuboid, False otherwise.
+        """
+        # Get all the vertices of the mesh
+        vertices = mesh.vertices
+        
+        # Check if all the vertices are inside the cuboid
+        for vertex in vertices:
+            if not self.check_point_in_cuboid(vertex):
+                return False
+        return True
+    
+    # My addition
+    def get_center(self, lst=True) -> Point3D|NDArray:
+        '''Returns the center of the cuboid.
+        Args:
+            lst : If True, returns the center as a list of numpy arrays.
+        Returns:
+            The center of the cuboid as a `Point3D` object.
+        '''
+        if lst:
+            return np.array([(self.x_min + self.x_max)/2, (self.y_min + self.y_max)/2, (self.z_min + self.z_max)/2])
+        else:
+            return Point3D([(self.x_min + self.x_max)/2, (self.y_min + self.y_max)/2, (self.z_min + self.z_max)/2], color=Color.RED, size=10)
 
 class Cuboid3DGeneralized(Shape):
     '''A class used to represent a cuboid in 3D space.

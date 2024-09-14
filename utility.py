@@ -345,9 +345,9 @@ def get_random_rotation_matrix(deflection=1.0, randnums=None):
         
     theta, phi, z = randnums
     
-    theta = theta * 2.0*deflection*np.pi  # Rotation about the pole (Z).
-    phi = phi * 2.0*np.pi  # For direction of pole deflection.
-    z = z * 2.0*deflection  # For magnitude of pole deflection.
+    theta = theta * 2.0 * deflection * np.pi  # Rotation about the pole (Z).
+    phi = phi * 2.0 * np.pi  # For direction of pole deflection.
+    z = z * 2.0 * deflection  # For magnitude of pole deflection.
     
     # Compute a vector V used for distributing points over the sphere
     # via the reflection I - V Transpose(V).  This formulation of V
@@ -372,6 +372,7 @@ def get_random_rotation_matrix(deflection=1.0, randnums=None):
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     return M
 
+# Not used
 def change_colour(mesh:Mesh3D, colours:np.ndarray) -> Mesh3D:
     
     # Convert the mesh to an Open3D mesh
@@ -434,30 +435,29 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False) -> bool|tu
     else:
         return collision_manager.in_collision_internal()
         
+def shift_center_of_mass(mesh:Mesh3D, new_center:np.ndarray) -> Mesh3D:
+    """
+    Shift the center of mass of a mesh to a new position.
+
+    Parameters:
+    - mesh: The input mesh
+    - new_center: The new center of mass
+
+    Returns:
+    - mesh: The mesh with the center of mass shifted
+    """
+    # Compute the current center of mass
+    current_center = np.mean(mesh.vertices, axis=0)
+
+    # Compute the translation vector
+    translation = new_center - current_center
+
+    # Shift the vertices
+    mesh.vertices += translation
+
+    return mesh
 
 
-    
-
-# def get_collision_points(mesh1:Mesh3D, mesh2:Mesh3D) -> np.ndarray:
-#     """Get the collision points between two meshes using trimesh library.
-
-#     Args:
-#     - mesh1: First mesh
-#     - mesh2: Second mesh
-
-#     Returns:
-#     - points: List of collision points
-#     """
-#     trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
-#     trimesh2 = trimesh.Trimesh(vertices=mesh2.vertices, faces=mesh2.triangles)
-#     collision_manager = trimesh.collision.CollisionManager()
-#     collision_manager.add_object("trimesh1", trimesh1)
-#     collision_manager.add_object("trimesh2", trimesh2)
-
-#     _, point_objs = collision_manager.in_collision_internal(return_data=True)
-#     points = np.array([point_obj.point for point_obj in point_objs])
-
-#     return points
 
 
 

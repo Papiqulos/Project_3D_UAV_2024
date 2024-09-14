@@ -14,26 +14,32 @@ from vvrpywork.shapes import (
 
 WIDTH, HEIGHT = 1800, 900
 
-COLOURS = [Color.RED, 
-        Color.GREEN, 
-        Color.BLUE, 
-        Color.YELLOW, 
-        Color.BLACK, 
-        Color.WHITE, 
-        Color.GRAY, 
-        Color.CYAN, 
-        Color.MAGENTA, 
-        Color.ORANGE]
+COLOURS = [
+            Color.RED, 
+            Color.GREEN, 
+            Color.BLUE, 
+            Color.YELLOW, 
+            Color.BLACK, 
+            Color.WHITE, 
+            Color.GRAY, 
+            Color.CYAN, 
+            Color.MAGENTA, 
+            Color.ORANGE
+          ]
 
-DRONES = ["models/F52.obj", 
+DRONES = [
+          "models/F52.obj", 
           "models/Helicopter.obj", 
           "models/quadcopter_scifi.obj",
-          "models/v22_osprey.obj"]
+          "models/v22_osprey.obj"
+         ]
 
-SPEEDS = [0.3, 
-          0.1, 
-          0.5, 
-          0.2]
+SPEEDS = np.array([
+                  [0.0, 0.2, 0.0],
+                  [0.1, 0.1, 0.1],
+                  [0.0, 0.3, 0.3],
+                  [0.1, 0.5, 0.1]
+                  ])
 
 SPEED_MAP = {DRONES[i]: SPEEDS[i] for i in range(len(DRONES))}
 
@@ -77,14 +83,33 @@ class Project(Scene3D):
         self.misc_geometries = {}
 
         # Simulation variables
-        self.dt = 0.01
+        self.dt = 0.03
         self.paused = True
+        self.paused_no_collisions = True
+        self.landing_simulation = True
+        self.landed_meshes = {}
+        self.last_update = time.time()
+        self.traj_index = 0
 
         # Dimension of the landing pad
-        self.N = 5
+        self.N = 4
 
         # Create the landing pad
         self.landing_pad(self.N)
+        self.y_bound = 10
+
+        # Get the bounds of the landing pad
+        top_left_corner_plane = self.landing_pads["plane_0_0"]
+        bottom_right_corner_plane = self.landing_pads[f"plane_{self.N-1}_{self.N-1}"]
+
+        top_left_point = top_left_corner_plane.get_all_points(lst=True)[6]
+        
+        bottom_right_point = bottom_right_corner_plane.get_all_points(lst=True)[4]
+        
+        self.bounding_cuboid = Cuboid3D(p1=top_left_point, p2=bottom_right_point+[0, self.y_bound, 0], color=Color.RED, filled=False)
+        self.addShape(self.bounding_cuboid, "bounding_cuboid")
+        
+        
     
     # List of commands
     def printHelp(self):
@@ -98,7 +123,8 @@ class Project(Scene3D):
         L: Check Collisions(Convex Hulls)\n\
         M: Check Collisions(14-DOPs)\n\
         V: Check Collisions and Show Collision Points(Mesh3Ds)\n\
-        T: Simulate\n")
+        T: Simulate\n\
+        F: Simulate without collisions\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -106,61 +132,82 @@ class Project(Scene3D):
             self.clear_scene()
 
         if symbol == Key.S:
+
+            # if no drones exist, show them
             if self.meshes:
                 self.print("Drones already exist. Clear them first.")
                 return
-            self.show_drones(self.num_of_drones)
+            self.show_drones(self.num_of_drones, rand_rot=False)
         
         if symbol == Key.C:
 
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show convex hulls for.")
                 return
             
+            # if drones exist show/hide the convex hulls
             if self.meshes:
+
+                # if convex hulls exist, remove them
                 if self.convex_hulls:
                     for mesh_name, _ in self.meshes.items():
                         self.removeShape(f"convex_hull_{mesh_name}")
                     self.convex_hulls = {}
+                # if convex hulls do not exist, show them
                 else:
                     for mesh_name, mesh in self.meshes.items():
                         self.show_convex_hull(mesh, mesh_name)
         
         if symbol == Key.A:
             
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show AABBs for.")
                 return
-
+            
+            # if drones exist show/hide the AABBs
             if self.meshes:
+
+                # if AABBs exist, remove them
                 if self.aabbs:
                     for mesh_name, _ in self.meshes.items():
                         self.removeShape(f"aabb_{mesh_name}")
                     self.aabbs = {}
+                # if AABBs do not exist, show them
                 else:
                     for mesh_name, mesh in self.meshes.items():
                         self.show_aabb(mesh, mesh_name)
                            
         if symbol == Key.K:
+
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show k-DOPs for.")
                 return
 
+            # if drones exist show/hide the 14-DOPs
             if self.meshes:
                 if self.kdops:
                     for kdop_name, _ in self.kdops.items():
                         self.removeShape(kdop_name)
                     self.kdops = {}
+                # if 14-DOPs do not exist, show them
                 else:
                     for mesh_name, mesh in self.meshes.items():
                         self.show_14dop(mesh, mesh_name)
         
         if symbol == Key.N:
+
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show collisions for.")
                 return
 
+            # if drones exist, check for collisions using AABBs
             if self.meshes:
+
+                # if collision AABBs exist, remove them and their labels
                 if self.collision_aabbs:
 
                     for collision_mesh_name, _ in self.collision_aabbs.items():
@@ -170,62 +217,89 @@ class Project(Scene3D):
                     for label_name, _ in self.misc_geometries.items(): 
                         if "inter_cuboid" in label_name:
                             self.removeShape(label_name)
-
+                # if collision AABBs do not exist, check for collisions
                 else:
+                    # Iterate over all the drones and check for collisions
                     for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                            # Skip the same drone
                             if mesh_name > mesh_name2:
                                 if self.collision_detection_aabbs(mesh, mesh_name, mesh2, mesh_name2):
                                     self.print(f"-AABB collision between {mesh_name} and {mesh_name2}")
  
         if symbol == Key.L:
+
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show collisions for.")
                 return
-
+            
+            # if drones exist, check for collisions using Convex Hulls
             if self.meshes:
-                
+                # Iterate over all the drones and check for collisions
                 for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                     for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                        # Skip the same drone
                         if mesh_name > mesh_name2:
                             if self.collision_detection_chs(mesh, mesh2):
                                 self.print(f"-Convex Hull collision between {mesh_name} and {mesh_name2}")
         
         if symbol == Key.M:
+
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show collisions for.")
                 return
 
+            # if drones exist, check for collisions using 14-DOPs
             if self.meshes:
+
+                # Iterate over all the drones and check for collisions
                 for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                     for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                        # Skip the same drone
                         if mesh_name > mesh_name2:
                             if self.collision_detection_kdops(mesh, mesh_name, mesh2, mesh_name2):
                                 self.print(f"-14-DOP collision between {mesh_name} and {mesh_name2}")
 
         if symbol == Key.V:
+
+            # if no drones exist, show a message
             if not self.meshes:
                 self.print("No drones to show collisions for.")
                 return
-
+            # if drones exist, check for collisions using the meshes themselves
             if self.meshes:
+                # If any collision points exist, remove them
                 if self.collision_points:
                     for collision_point_name, _ in self.collision_points.items():
                         self.removeShape(collision_point_name)
                     self.collision_points = {}
+                # Iterate over all the drones and check for collisions
                 else:
                     for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
                         for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                            # Skip the same drone
                             if mesh_name > mesh_name2:
                                 if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
                                     self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")   
 
         if symbol == Key.T:
+            # Start/Pause the simulation
             self.paused = not self.paused
-            
+            self.print(f"-Paused: {self.paused}")
+
+        if symbol == Key.F:
+            # Start/Pause the simulation without collisions
+            self.paused_no_collisions = not self.paused_no_collisions       
+            self.print(f"-Paused_no_collision: {self.paused_no_collisions}")
+
+        if symbol == Key.SPACE:
+            # Start/Pause the landing protocol
+            self.landing_simulation = not self.landing_simulation
 
     def reset_sliders(self):
-        self.set_slider_value(0, 0.1)
+        self.set_slider_value(0, 0.4)
     
     def on_slider_change(self, slider_id, value):
 
@@ -258,7 +332,7 @@ class Project(Scene3D):
         self.collision_points = {}
         self.moving_meshes = {}
         
-    def landing_pad(self, size:float) -> None:
+    def landing_pad(self, size:float, height:float = 0.2) -> None:
         '''Construct an NxN landing pad.
         
         Args:
@@ -270,7 +344,7 @@ class Project(Scene3D):
                 colour = COLOURS_BW[(i+j)%len(COLOURS_BW)]
 
                 plane = Cuboid3D(p1=[2*i - size, 0, 2*j - size], 
-                                 p2=[2*i+2 - size, -0.2, 2*j+2 - size], 
+                                 p2=[2*i+2 - size, -height, 2*j+2 - size], 
                                  color=colour, 
                                  filled = True)
                 
@@ -285,13 +359,16 @@ class Project(Scene3D):
             num_drones: The number of drones
             rand_rot: Whether to randomly rotate the drones
         '''
+        if num_drones > self.N**2:
+            num_drones = self.N**2
 
         for i in range(num_drones):
             colour = COLOURS[i%len(COLOURS)]
             drone_path = DRONES[i%len(DRONES)]
             mesh = Mesh3D(path=drone_path, color=colour)
-            mesh = self.randomize_mesh(mesh, i, label=True, rand_rot=rand_rot)
-            self.meshes[f"drone_{i}"] = mesh
+            id = random.uniform(0, 10)
+            mesh = self.randomize_mesh(mesh, id, label=True, rand_rot=rand_rot)
+            self.meshes[f"drone_{id}"] = mesh
 
         # Create a copy of the meshes to avoid modifying the original meshes
         self.moving_meshes = self.meshes.copy()
@@ -328,7 +405,10 @@ class Project(Scene3D):
             dir = np.array([0, 1, 0])
             rotation_matrix = get_rotation_matrix(center, dir)
 
-        
+        if mesh.path == "models/Helicopter.obj":
+            # Roate the helicopter to face the positive x-axis
+            
+            rotation_matrix = U.euler_angles_to_rotation_matrix([0, np.pi/2, 0])
 
         # Apply the translation and rotation to the vertices
         transformed_vertices = vertices @ rotation_matrix.T + translation_vector
@@ -725,24 +805,59 @@ class Project(Scene3D):
         return mesh_collision
     
     def on_idle(self):
+        '''The idle function of the scene.'''
+
+        # Time check to update the scene
+        if time.time() - self.last_update < self.dt:
+            return
+        
+        # Simulation with the drones moving and stopping if they collide
         if not self.paused:
             if self.meshes:
                 self.simulate()
                 return
             self.show_drones(self.num_of_drones, rand_rot=False)
             return True
+        
+        # Simulation with the drones moving and changing their speed to avoid collisions
+        if not self.paused_no_collisions:
+            if self.meshes:
+                # If any collision points exist, remove them
+                if self.collision_points:
+                    for collision_point_name, _ in self.collision_points.items():
+                        self.removeShape(collision_point_name)
+                    self.collision_points = {}
+                self.simulate_no_collisions()
+                return
+            self.show_drones(self.num_of_drones, rand_rot=False)
+            return True
+        
+        # Follow a trajectory
+        if not self.landing_simulation:
+            # if self.meshes:
+            #     self.traj_index += 1
+            #     trajectory = np.array([[0, 2, 1.1], [0, 2, 1.2], [0, 2, 1.4], [0, 2, 2], [0, 2, 2.4]])
+
+            #     if self.traj_index == (len(trajectory) - 1):
+            #         self.traj_index = 0
+                
+            #     self.move_drone_to_point(self.meshes["drone_0"], "drone_0", trajectory[self.traj_index])
+            #     return
+            # self.show_drones(self.num_of_drones, rand_rot=False)
+            self.landing_protocol()
+        
         return False
     
-    def move_drone(self, mesh:Mesh3D, mesh_name:str, speed:float) -> None:
-        '''Move the drone in a direction.
+    def move_drone(self, mesh:Mesh3D, mesh_name:str, speed:np.ndarray) -> None:
+        '''Move the drone with a certain speed.
         
         Args:
-            - mesh: The mesh
-            - mesh_name: The name of the mesh
+            - mesh : The mesh
+            - mesh_name : The name of the mesh
+            - speed : The speed of the drone
         '''
-        translation_vector = np.array([0, 
-                                       0, 
-                                       speed])
+        self.last_update = time.time() 
+        translation_vector = speed
         
         # Move the drone
         mesh.vertices += translation_vector
@@ -755,9 +870,50 @@ class Project(Scene3D):
         label.z += translation_vector[2]
         self.updateShape(f"label_{mesh_name}", quick=True)
 
+    def move_drone_to_point(self, mesh:Mesh3D, mesh_name:str, point:np.ndarray) -> None:
+        '''Move the drone to a point.
+        
+        Args:
+            - mesh : The mesh
+            - mesh_name : The name of the mesh
+            - point : The point
+        '''
+        self.last_update = time.time() 
+        # Move the drone
+        mesh = U.shift_center_of_mass(mesh, point)
+        self.updateShape(mesh_name)
+
+        # Move the label
+        label = self.misc_geometries[f"label_{mesh_name}"]
+        label.x = point[0]
+        label.y = point[1]
+        label.z = point[2]
+        self.updateShape(f"label_{mesh_name}")
+
     def simulate(self):
         '''Simulate the scene, moving the drones and stopping them if they collide.'''
+
+
         for mesh_name, mesh in self.meshes.items():
+
+            # If all the drones have stopped, clear the scene
+            if self.moving_meshes == {}:
+                self.clear_scene()
+                return
+            
+            # If the drone is out of bounds, remove it
+            if not self.bounding_cuboid.check_mesh_in_cuboid(mesh):
+
+                # self.print(f"-Drone {mesh_name} out of bounds")
+                if mesh_name in self.moving_meshes:
+                    self.moving_meshes.pop(mesh_name)
+                    continue
+
+                # Remove the label as well
+                # self.removeShape(f"label_{mesh_name}")
+                self.removeShape(mesh_name)
+                continue
+
             if mesh_name in self.moving_meshes:
                 self.move_drone(mesh, mesh_name, SPEED_MAP[mesh.path]) 
                   
@@ -766,11 +922,62 @@ class Project(Scene3D):
                 # If the meshes have been checked for collision, skip them
                 if f"col_point_{mesh_name}_{mesh_name2}_0" in self.collision_points:
                     continue
+
+                # Skip the same mesh
                 if mesh_name > mesh_name2:
                     if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
                         self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
-            time.sleep(self.dt)
+    def simulate_no_collisions(self):
+        '''Simulate the scene , moving the dornes and changing their speed if they collide to avoid collisions.'''
+        
+
+        for mesh_name, mesh in self.meshes.items():
+            # If all the drones have stopped, clear the scene
+            if self.moving_meshes == {}:
+                self.clear_scene()
+                return
+            
+            # If the drone is out of bounds, remove it
+            if not self.bounding_cuboid.check_mesh_in_cuboid(mesh):
+                # self.print(f"-Drone {mesh_name} out of bounds")
+                if mesh_name in self.moving_meshes:
+                    self.moving_meshes.pop(mesh_name)
+                    continue
+
+                # Remove the label as well
+                # self.removeShape(f"label_{mesh_name}")
+                self.removeShape(mesh_name)
+                continue
+
+            self.move_drone(mesh, mesh_name, SPEED_MAP[mesh.path]) 
+                  
+            for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+
+                # If the meshes have been checked for collision, skip them
+                if f"col_point_{mesh_name}_{mesh_name2}_0" in self.collision_points:
+                    continue
+                # Skip the same mesh
+                if mesh_name > mesh_name2:
+                    if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
+                        self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
+
+                        # Change the speed of the drones to avoid collisions
+                        SPEED_MAP[mesh.path] -= 0.01
+                        SPEED_MAP[mesh2.path] += 0.01
+                            
+    def landing_protocol(self):
+        '''Simulate the landing protocol.'''
+        self.last_update = time.time()
+        self.show_drones(1, rand_rot=False)                 
+
+
+
+        
+        
+        
+            
+            
             
             
             

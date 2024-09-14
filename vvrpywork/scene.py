@@ -239,6 +239,7 @@ class Scene3D:
 
         self._shapeDict = {}
 
+    # My addition
     def change_camera(self, new_center):
         if isinstance(new_center, np.ndarray):
             new_center = new_center
