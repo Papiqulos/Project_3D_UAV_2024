@@ -83,13 +83,15 @@ class Project(Scene3D):
         self.misc_geometries = {}
 
         # Simulation variables
-        self.dt = 0.03
-        self.paused = True
-        self.paused_no_collisions = True
-        self.landing_simulation = True
-        self.landed_meshes = {}
-        self.last_update = time.time()
-        self.traj_index = 0
+        self.dt = 0.03 # Time step
+        self.paused = True # Pause the simulation
+        self.paused_no_collisions = True # Pause the simulation without collisions
+        self.pause_landing_simulation = True # Pause the landing protocol
+        self.pause_take_off_simulation = True # Pause the take off protocol
+        self.landed_meshes = {} # Drones that have landed
+        self.last_update = time.time() # Time of the last update
+        self.last_spawn_time = time.time() # Time of the last drone spawn
+        self.spawn_interval = random.uniform(0.5, 1.5) # Time interval between drone spawns
 
         # Dimension of the landing pad
         self.N = 4
@@ -107,7 +109,8 @@ class Project(Scene3D):
         bottom_right_point = bottom_right_corner_plane.get_all_points(lst=True)[4]
         
         self.bounding_cuboid = Cuboid3D(p1=top_left_point, p2=bottom_right_point+[0, self.y_bound, 0], color=Color.RED, filled=False)
-        self.addShape(self.bounding_cuboid, "bounding_cuboid")
+        # self.misc_geometries["bounding_cuboid"] = self.bounding_cuboid
+        self.shown_bounds = True
         
         
     
@@ -115,6 +118,7 @@ class Project(Scene3D):
     def printHelp(self):
         self.print("\
         R: Clear scene\n\
+        B: Toggle bounds\n\
         S: Show drones in random positions\n\
         C: Toggle convex hulls\n\
         A: Toggle AABBs\n\
@@ -124,7 +128,9 @@ class Project(Scene3D):
         M: Check Collisions(14-DOPs)\n\
         V: Check Collisions and Show Collision Points(Mesh3Ds)\n\
         T: Simulate\n\
-        F: Simulate without collisions\n\n")
+        F: Simulate without collisions\n\
+        SPACE: Landing Protocol\n\
+        Q: Take off Protocol\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -296,10 +302,23 @@ class Project(Scene3D):
 
         if symbol == Key.SPACE:
             # Start/Pause the landing protocol
-            self.landing_simulation = not self.landing_simulation
+            self.pause_landing_simulation = not self.pause_landing_simulation
+
+        if symbol == Key.Q:
+            # Start/Pause the take off protocol
+            self.pause_take_off_simulation = not self.pause_take_off_simulation
+
+        if symbol == Key.B:
+            # Show the bounding cuboid
+            if self.shown_bounds:
+                self.addShape(self.bounding_cuboid, "bounding_cuboid")
+                self.shown_bounds = not self.shown_bounds
+            else:
+                self.removeShape("bounding_cuboid")
+                self.shown_bounds = not self.shown_bounds
 
     def reset_sliders(self):
-        self.set_slider_value(0, 0.4)
+        self.set_slider_value(0, 0.6)
     
     def on_slider_change(self, slider_id, value):
 
@@ -352,21 +371,27 @@ class Project(Scene3D):
                 self.addShape(plane, plane_id)
                 self.landing_pads[plane_id] = plane
         
-    def show_drones(self, num_drones:int = 10, rand_rot:bool = True) -> None:
+    def show_drones(self, num_drones:int = 10, rand_rot:bool = True, rand_id:bool = False) -> None:
         '''Show a certain number of drones in random positions.
 
         Args:
             num_drones: The number of drones
             rand_rot: Whether to randomly rotate the drones
+            rand_id: Whether to randomly assign IDs to the drones
         '''
         if num_drones > self.N**2:
             num_drones = self.N**2
 
         for i in range(num_drones):
-            colour = COLOURS[i%len(COLOURS)]
-            drone_path = DRONES[i%len(DRONES)]
+            if rand_id:
+                colour = COLOURS[random.randint(0, len(COLOURS)-1)]
+                drone_path = DRONES[random.randint(0, len(DRONES)-1)]
+                id = random.randint(0, 100)
+            else:
+                colour = COLOURS[i%len(COLOURS)]
+                drone_path = DRONES[i%len(DRONES)]
+                id = i
             mesh = Mesh3D(path=drone_path, color=colour)
-            id = random.uniform(0, 10)
             mesh = self.randomize_mesh(mesh, id, label=True, rand_rot=rand_rot)
             self.meshes[f"drone_{id}"] = mesh
 
@@ -393,7 +418,7 @@ class Project(Scene3D):
 
         # Randomly translate the mesh
         translation_vector = np.array([random.uniform(-trans_thresold, trans_thresold), 
-                                       random.uniform(0.5, trans_thresold), 
+                                       random.uniform(0.5, self.y_bound), 
                                        random.uniform(-trans_thresold, trans_thresold)])
         
         if rand_rot:
@@ -406,8 +431,7 @@ class Project(Scene3D):
             rotation_matrix = get_rotation_matrix(center, dir)
 
         if mesh.path == "models/Helicopter.obj":
-            # Roate the helicopter to face the positive x-axis
-            
+            # Roate the helicopter to face forward
             rotation_matrix = U.euler_angles_to_rotation_matrix([0, np.pi/2, 0])
 
         # Apply the translation and rotation to the vertices
@@ -832,19 +856,16 @@ class Project(Scene3D):
             self.show_drones(self.num_of_drones, rand_rot=False)
             return True
         
-        # Follow a trajectory
-        if not self.landing_simulation:
-            # if self.meshes:
-            #     self.traj_index += 1
-            #     trajectory = np.array([[0, 2, 1.1], [0, 2, 1.2], [0, 2, 1.4], [0, 2, 2], [0, 2, 2.4]])
+        # Landing trajectory
+        if not self.pause_landing_simulation:
+            if self.meshes:
+                self.landing_protocol()
+                return
+            self.show_drones(self.num_of_drones, rand_rot=False)
 
-            #     if self.traj_index == (len(trajectory) - 1):
-            #         self.traj_index = 0
-                
-            #     self.move_drone_to_point(self.meshes["drone_0"], "drone_0", trajectory[self.traj_index])
-            #     return
-            # self.show_drones(self.num_of_drones, rand_rot=False)
-            self.landing_protocol()
+        # Take off protocol
+        if not self.pause_take_off_simulation:
+            self.take_off_protocol()
         
         return False
     
@@ -963,14 +984,90 @@ class Project(Scene3D):
                         self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
                         # Change the speed of the drones to avoid collisions
-                        SPEED_MAP[mesh.path] -= 0.01
-                        SPEED_MAP[mesh2.path] += 0.01
+                        # Calculate the direction both of the are moving
+                        direction1 = SPEED_MAP[mesh.path] / np.linalg.norm(SPEED_MAP[mesh.path])
+                        direction2 = SPEED_MAP[mesh2.path] / np.linalg.norm(SPEED_MAP[mesh2.path])
+
+                        # Move one drone in the opposite direction of the other drone
+                        self.move_drone(mesh, mesh_name, -0.01 * direction2)
                             
     def landing_protocol(self):
         '''Simulate the landing protocol.'''
         self.last_update = time.time()
-        self.show_drones(1, rand_rot=False)                 
 
+
+        # Spawn drones at random time intervals until there are N^2 drones (one drone per landing pad)
+        if not len(self.meshes) == self.N**2: 
+            if time.time() - self.last_spawn_time > self.spawn_interval:
+                self.show_drones(1, rand_rot=False, rand_id=True)
+                # self.print(f"Drone has spawned")
+                self.last_spawn_time = time.time()
+
+        for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+
+
+            landing_pad = list(self.landing_pads.values())[i]
+            landing_point = landing_pad.get_center() + np.array([0, 0.3, 0])
+
+
+            # Calculate the distance between the drone and the landing pad
+            distance = np.linalg.norm(mesh.get_center() - landing_point)
+
+            # Move the drone to the direction of the landing pad
+            if distance > 0.1:
+
+                # Calculate the direction to the landing pad
+                direction = (landing_point - mesh.get_center(lst=True))
+
+                # Calculate the speed
+                speed_modifier = np.random.uniform(0.1, 0.3) # Random speed
+                speed = direction / np.linalg.norm(direction) * speed_modifier
+
+                # Check for collisions and adjust the speed to avoid them
+                for j, (mesh_name2, mesh2) in enumerate(self.meshes.items()):
+                    if mesh_name > mesh_name2:
+                        if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
+                            self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
+
+                            # Change the speed of the drone to avoid collisions
+                            speed -= 0.01 * direction / np.linalg.norm(direction)
+                self.move_drone(mesh, mesh_name, speed)
+                
+                return
+            
+            # Ff the drone is close to the landing pad, move it to the landing pad
+            if distance <= 0.1:
+                self.move_drone_to_point(mesh, mesh_name, landing_point)
+                
+                # Check if the drone has landed
+                if mesh_name not in self.landed_meshes:
+                    self.print(f"{mesh_name} has landed")
+                self.landed_meshes[mesh_name] = mesh
+
+                # If all the drones have landed, pause the landing simulation
+                if len(self.landed_meshes) == len(self.meshes):
+                    self.pause_landing_simulation = True 
+                continue
+
+    def take_off_protocol(self):
+        '''Simulate the take off protocol.'''
+        self.last_update = time.time()
+
+        for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
+            take_off_point = np.array([0, 2, 1.1])
+
+            # Calculate the distance between the drone and the take off point
+            distance = np.linalg.norm(mesh.get_center() - take_off_point)
+
+            # Move the drone to the direction of the take off point
+            if distance > 0.1:
+
+                # Calculate the direction to the take off point
+                direction = (take_off_point - mesh.get_center(lst=True))
+
+                # Calculate the speed
+                speed_modifier = np.random.uniform(0.1, 0.3) # Random speed
+        
 
 
         
