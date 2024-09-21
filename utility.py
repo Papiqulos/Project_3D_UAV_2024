@@ -76,7 +76,6 @@ def rotation_matrix_from_axis_angle(axis:np.ndarray, angle:float) -> np.ndarray:
     
     return R
 
-# Not used
 def euler_angles_to_rotation_matrix(euler_angles:np.ndarray) -> np.ndarray:
     """
     Create a rotation matrix from Euler angles.
@@ -454,6 +453,24 @@ def shift_center_of_mass(mesh:Mesh3D, new_center:np.ndarray) -> Mesh3D:
 
     # Shift the vertices
     mesh.vertices += translation
+
+    return mesh
+
+def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
+    '''Applies unit sphere normalization to the mesh.
+
+    Args:
+        mesh: The mesh
+
+    Returns:
+        normalized_mesh: The normalized mesh
+    '''
+
+    mesh.vertices = np.array(mesh.vertices)
+    center = np.mean(mesh.vertices, axis=0)
+    mesh.vertices -= center
+    max_distance = np.max(np.linalg.norm(mesh.vertices, axis=1))
+    mesh.vertices /= max_distance
 
     return mesh
 
