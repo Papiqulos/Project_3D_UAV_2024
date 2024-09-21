@@ -474,6 +474,22 @@ def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
 
     return mesh
 
+def get_surface_normal(mesh:Mesh3D, collision_point:np.ndarray) -> np.ndarray:
+    '''Computes the surface normal at a collision point on a mesh.
+
+    Args:
+        mesh: The mesh
+        collision_point: The collision point
+
+    Returns:
+        normal: The surface normal at the collision point
+    '''
+    trimesh_mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.triangles)
+    _, index_ray, index_tri = trimesh_mesh.ray.intersects_id([collision_point], return_locations=True)
+    normal = trimesh_mesh.face_normals[index_tri[0]]
+
+    return normal
+
 
 
 

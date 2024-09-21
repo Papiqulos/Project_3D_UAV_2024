@@ -157,10 +157,17 @@ class UavSim(Scene3D):
         if symbol == Key.S:
 
             # if no drones exist, show them
-            if self.meshes:
-                self.print("Drones already exist. Clear them first.")
-                return
-            self.show_drones(self.num_of_drones, rand_rot=False, label=False)
+            # if self.meshes:
+            #     self.print("Drones already exist. Clear them first.")
+            #     return
+            # self.show_drones(self.num_of_drones, rand_rot=False, label=False)
+
+
+
+            ## TESTING
+            mesh1 = Mesh3D(path="models/F52.obj", color=Color.RED)
+            mesh2 = Mesh3D(path="models/Helicopter.obj", color=Color.GREEN)
+
         
         if symbol == Key.P:
 
@@ -1043,18 +1050,18 @@ class UavSim(Scene3D):
                     if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
                         self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
-                        # Change the speed of the drones to avoid collisions
-                        # Calculate the direction both of the are moving
-                        direction1 = self.speeds[mesh_name]
-                        direction2 = self.speeds[mesh_name2]
+                        # Calculate the surface normal of the collision point
+                        collision_point = self.collision_points[f"col_point_{mesh_name}_{mesh_name2}_0"]
+                        collision_point = np.array(collision_point.x, collision_point.y, collision_point.z)
+                        surface_normal = U.get_surface_normal(mesh, collision_point)
+
+                        # Change the speed of the drone to avoid collisions
+                        speed1 = self.speeds[mesh_name]
 
                         # Change the speed of the drones to avoid collisions
-                        speed1 = -1 * direction1
-                        speed2 = -1 * direction2
+                        new_speed1 = speed1 - 2 * np.dot(speed1, surface_normal) * surface_normal
+                        self.speeds[mesh_name] = new_speed1
                         
-
-                        self.speeds[mesh_name] = speed1
-                        self.speeds[mesh_name2] = speed2
                             
     def landing_protocol(self):
         '''Simulate the landing protocol.'''
