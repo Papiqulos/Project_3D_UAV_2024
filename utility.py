@@ -3,7 +3,7 @@ import open3d as o3d
 import numpy as np
 from vvrpywork.constants import Color
 from vvrpywork.shapes import (
-    Point3D, Mesh3D
+    Point3D, Mesh3D, Cuboid3D
 )
 from itertools import combinations
 import trimesh
@@ -503,7 +503,55 @@ def get_surface_normal(mesh:Mesh3D, collision_point:np.ndarray) -> np.ndarray:
 
     return normal
 
+def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
+    """Get the projection of a mesh on a plane.
+    
+    Args:
+    - mesh: The mesh
+    - plane: The plane of projection ("xy", "xz", "yz")
 
+    Returns:
+    - proj_mesh: The projected mesh
+    """
+    vertices = np.array(mesh.vertices)
+    v = vertices.copy()
+
+    if plane == "xy":
+        v[:, 2] = 0
+    elif plane == "xz":
+        v[:, 1] = 0
+    elif plane == "yz":
+        v[:, 0] = 0
+
+    proj_mesh = Mesh3D(color=mesh.color)
+    proj_mesh.vertices = v
+    proj_mesh.triangles = mesh.triangles
+
+    return proj_mesh
+
+def move_proj_to_faces(proj_mesh:Mesh3D, tr1, tr2):
+    """Move the projection of a mesh to the faces of an AABB.
+    
+    Args:
+    - proj_mesh: The projected mesh
+    - tr1: Translation for the first face
+    - tr2: Translation for the second face
+    """
+
+    # Create 2 copies one for each face
+    proj_mesh1 = proj_mesh.get_copy()
+    proj_mesh2 = proj_mesh.get_copy()
+    
+    # Shift the center of mass of the projections to the center of the each face
+    proj_mesh1 = shift_center_of_mass(proj_mesh1, tr1)
+    proj_mesh2 = shift_center_of_mass(proj_mesh2, tr2)
+
+    return proj_mesh1, proj_mesh2
+        
+    
+        
+
+    
 
 
 
