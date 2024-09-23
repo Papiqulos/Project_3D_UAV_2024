@@ -29,6 +29,7 @@ Tuple = tuple
 NDArray2 = Annotated[np.ndarray, Is[lambda array: array.shape == (2,)]]
 NDArray3 = Annotated[np.ndarray, Is[lambda array: array.shape == (3,)]]
 NDArray4 = Annotated[np.ndarray, Is[lambda array: array.shape == (4,)]]
+NDArray6 = Annotated[np.ndarray, Is[lambda array: array.shape == (6,)]]
 List2 = Annotated[list[Number], 2]
 List3 = Annotated[list[Number], 3]
 List4 = Annotated[list[Number], 4]
@@ -2610,10 +2611,8 @@ class Cuboid3D(Shape):
                     center + np.array([(self.x_max - self.x_min)/2, 0, 0]), # Right yz
                     center + np.array([-(self.x_max - self.x_min)/2, 0, 0])] # Left yz
          
-        # Transform the centers to Point3D objects
-        if lst:
-            centers = [np.array(center) for center in centers]
-        else:
+        # Transform the centers to Point3D objects if need be
+        if not lst:
             centers = [Point3D(center, color=Color.CYAN, size=1) for center in centers]
         
         return centers

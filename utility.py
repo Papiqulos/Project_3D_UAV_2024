@@ -374,16 +374,6 @@ def get_random_rotation_matrix(deflection=1.0, randnums=None):
     M = (np.outer(V, V) - np.eye(3)).dot(R)
     return M
 
-# Not used
-def change_colour(mesh:Mesh3D, colours:np.ndarray) -> Mesh3D:
-    
-    # Convert the mesh to an Open3D mesh
-    o3d_mesh = mesh_to_o3d(mesh)
-
-    o3d_mesh.vertex_colors = o3d.utility.Vector3dVector(colours)
-    
-    return o3d_to_mesh(o3d_mesh)
-
 def intersect_cuboids(cuboid_a, cuboid_b):
     """
     Computes the intersection cuboid formed by two colliding cuboids, if any.
@@ -529,24 +519,29 @@ def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
 
     return proj_mesh
 
-def move_proj_to_faces(proj_mesh:Mesh3D, tr1, tr2):
-    """Move the projection of a mesh to the faces of an AABB.
+def get_min_max_extents_dop(mesh:Mesh3D, directions:np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Get the minimum and maximum extents as well as the dot products of a mesh in certain directions.
     
     Args:
-    - proj_mesh: The projected mesh
-    - tr1: Translation for the first face
-    - tr2: Translation for the second face
-    """
-
-    # Create 2 copies one for each face
-    proj_mesh1 = proj_mesh.get_copy()
-    proj_mesh2 = proj_mesh.get_copy()
+    - mesh: The mesh
+    - directions: The directions
     
-    # Shift the center of mass of the projections to the center of the each face
-    proj_mesh1 = shift_center_of_mass(proj_mesh1, tr1)
-    proj_mesh2 = shift_center_of_mass(proj_mesh2, tr2)
+    Returns:
+    - min_extents: The minimum extents
+    - max_extents: The maximum extents
+    - dot_products: The dot products
+    """
+    vertices = np.array(mesh.vertices)
 
-    return proj_mesh1, proj_mesh2
+    # Distances for each direction
+    dot_products = np.dot(vertices, directions.T)
+
+    # Get the maximum and minimum dot products
+    max_extents = np.max(dot_products, axis=0)
+    min_extents = np.min(dot_products, axis=0)
+
+    return min_extents, max_extents, dot_products
+
         
     
         
