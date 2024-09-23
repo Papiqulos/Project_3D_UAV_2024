@@ -37,14 +37,13 @@ DRONES = [
 DRONES = DRONES[:2]
 
 SPEEDS = np.array([
-                  [0.01, 0.1, 0.3],
-                  [0.05, -0.1, 0.2],
+                  [0.0, 0.1, 0.0],
+                  [0.0, -0.1, 0.0],
                   [0.0, 0.3, 0.3],
                   [0.1, 0.5, 0.1]
                   ])
 
 SPEED_MAP = {DRONES[i]: SPEEDS[i] for i in range(len(DRONES))}
-print(SPEED_MAP)
 
 COLOURS_BW = [Color.BLACK, Color.WHITE]
 
@@ -109,6 +108,11 @@ class UavSim(Scene3D):
         self.aabb_col_t = {"": 0}
         self.kdop_col_t = {"": 0}
         self.mesh_col_t = {"": 0}
+
+        ## Projections
+        self.proj_xy = {}
+        self.proj_xz = {}
+        self.proj_yz = {}
         
         ## Landing pad variables
         # Dimension of the landing pad
@@ -147,7 +151,8 @@ class UavSim(Scene3D):
         T: Simulate\n\
         F: Simulate without collisions\n\
         Q: Show statistics\n\
-        SPACE: Landing Protocol\n\n")
+        SPACE: Landing Protocol\n\
+        I:Project to xy, xz, yz\n\n")
 
     def on_key_press(self, symbol, modifiers):
 
@@ -166,8 +171,23 @@ class UavSim(Scene3D):
 
             ## TESTING
             mesh1 = Mesh3D(path="models/F52.obj", color=Color.RED)
+            mesh1 = U.unit_sphere_normalization(mesh1)
             mesh2 = Mesh3D(path="models/Helicopter.obj", color=Color.GREEN)
+            mesh2 = U.unit_sphere_normalization(mesh2)
 
+            self.meshes["drone_1"] = mesh1
+            self.meshes["drone_2"] = mesh2
+
+            self.speeds["drone_1"] = SPEED_MAP[mesh1.path]
+            self.speeds["drone_2"] = SPEED_MAP[mesh2.path]
+
+            self.addShape(mesh1, "drone_1")
+            self.addShape(mesh2, "drone_2")
+
+            self.moving_meshes = self.meshes.copy()
+
+            self.move_drone_to_point(mesh1, "drone_1", [0, 2, 0])
+            self.move_drone_to_point(mesh2, "drone_2", [0, 5, 0])
         
         if symbol == Key.P:
 
@@ -347,6 +367,20 @@ class UavSim(Scene3D):
         
         if symbol == Key.Q:
             self.stats()
+
+        if symbol == Key.I:
+            self.get_projections()
+            for proj_name, proj in self.proj_xy.items():
+                self.addShape(proj, proj_name)
+
+            for proj_name, proj in self.proj_xz.items():
+                self.addShape(proj, proj_name)
+
+            for proj_name, proj in self.proj_yz.items():
+                self.addShape(proj, proj_name)
+
+
+
 
     def reset_sliders(self):
         self.set_slider_value(0, 0.6)
@@ -837,6 +871,7 @@ class UavSim(Scene3D):
         if not aabb_collision:
             return False
         
+        # Occasionally crashes
         # kdop_collision = self.collision_detection_kdops(mesh1, mesh_name1, mesh2, mesh_name2)
         # if not kdop_collision:
         #     return False
@@ -850,15 +885,15 @@ class UavSim(Scene3D):
         if not mesh_collision:
             return False
         
-        # If the meshes intersect, remove them from the moving meshes
-        if mesh_collision and not self.paused:
+        # # If the meshes intersect, remove them from the moving meshes
+        # if mesh_collision and not self.paused:
 
-            if mesh_name1 in self.moving_meshes:
-                self.moving_meshes.pop(mesh_name1)
+        #     if mesh_name1 in self.moving_meshes:
+        #         self.moving_meshes.pop(mesh_name1)
                 
 
-            if mesh_name2 in self.moving_meshes:
-                self.moving_meshes.pop(mesh_name2)
+        #     if mesh_name2 in self.moving_meshes:
+        #         self.moving_meshes.pop(mesh_name2)
                 
         end = time.time()
         self.mesh_col_t[f"{mesh_name1}_{mesh_name2}"] = end - start
@@ -1052,7 +1087,7 @@ class UavSim(Scene3D):
 
                         # Calculate the surface normal of the collision point
                         collision_point = self.collision_points[f"col_point_{mesh_name}_{mesh_name2}_0"]
-                        collision_point = np.array(collision_point.x, collision_point.y, collision_point.z)
+                        collision_point = np.array([collision_point.x, collision_point.y, collision_point.z])
                         surface_normal = U.get_surface_normal(mesh, collision_point)
 
                         # Change the speed of the drone to avoid collisions
@@ -1060,9 +1095,11 @@ class UavSim(Scene3D):
 
                         # Change the speed of the drones to avoid collisions
                         new_speed1 = speed1 - 2 * np.dot(speed1, surface_normal) * surface_normal
+                        print(new_speed1)
+                        print(mesh_name)
                         self.speeds[mesh_name] = new_speed1
-                        
-                            
+                        continue
+                                                 
     def landing_protocol(self):
         '''Simulate the landing protocol.'''
         self.last_update = time.time()
@@ -1114,7 +1151,7 @@ class UavSim(Scene3D):
                         if self.collision_detection_meshes(mesh, mesh_name, mesh2, mesh_name2):
                             self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
-                            # Change the speed of the drone to avoid collisions
+                            # Change the vertical speed of the drone to avoid collisions
                             speed[2] += 0.1
                 
                 
@@ -1133,6 +1170,88 @@ class UavSim(Scene3D):
                 if len(self.landed_meshes) == len(self.meshes):
                     self.pause_landing_simulation = True 
                 continue
+
+    def get_projections(self) -> None:
+        """Project the meshs to the xy, xz, yz planes and store the projections in dictionaries."""
+
+        for mesh_name, mesh in self.meshes.items():
+            vertices = np.array(mesh.vertices)
+
+            # 3 copies of the vertices
+            v1 = vertices.copy()
+            v2 = vertices.copy()
+            v3 = vertices.copy()
+
+            # Project the mesh to the xy-plane
+            v1[:, 2] = 0
+            xy_vertices = v1
+            mesh_xy = Mesh3D(color=mesh.color)
+            mesh_xy.vertices = xy_vertices
+            mesh_xy.triangles = mesh.triangles
+
+            # Project the mesh to the xz-plane
+            v2[:, 1] = 0
+            xz_vertices = v2
+            mesh_xz = Mesh3D(color=mesh.color)
+            mesh_xz.vertices = xz_vertices
+            mesh_xz.triangles = mesh.triangles
+
+            # Project the mesh to the yz-plane
+            v3[:, 0] = 0
+            yz_vertices = v3
+            mesh_yz = Mesh3D(color=mesh.color)
+            mesh_yz.vertices = yz_vertices
+            mesh_yz.triangles = mesh.triangles
+
+
+            ## Move the projections to the centers of the corresponding planes
+            # Get the AABB of the mesh if it does not exist
+            if f"aabb_{mesh_name}" not in self.aabbs.keys():
+                self.get_aabb(mesh, mesh_name)
+
+            aabb = self.aabbs[f"aabb_{mesh_name}"]
+
+            # Get the centers of the faces of the AABB
+            tr_back, tr_front, tr_top, tr_bottom, tr_right, tr_left = aabb.get_face_centers(lst=True)
+
+            # Back and front projections
+            # Create 2 copies one for the back and one for the front
+            mesh_xy_back = mesh_xy.get_copy()
+            mesh_xy_front = mesh_xy.get_copy()
+            # Shift the center of mass of the projections to the center of the back and front faces of the AABB
+            mesh_xy_back = U.shift_center_of_mass(mesh_xy_back, tr_back)
+            mesh_xy_front = U.shift_center_of_mass(mesh_xy_front, tr_front)
+            # Add the projections to the dictionary
+            self.proj_xy[f"xy_back_{mesh_name}"] = mesh_xy_back
+            self.proj_xy[f"xy_front_{mesh_name}"] = mesh_xy_front
+
+            # Top and bottom projections
+            # Create 2 copies one for the top and one for the bottom
+            mesh_xz_top = mesh_xz.get_copy()
+            mesh_xz_bottom = mesh_xz.get_copy()
+            # Shift the center of mass of the projections to the center of the top and bottom faces of the AABB
+            mesh_xz_top = U.shift_center_of_mass(mesh_xz_top, tr_top)
+            mesh_xz_bottom = U.shift_center_of_mass(mesh_xz_bottom, tr_bottom)
+            # Add the projections to the dictionary
+            self.proj_xz[f"xz_top_{mesh_name}"] = mesh_xz_top
+            self.proj_xz[f"xz_bottom_{mesh_name}"] = mesh_xz_bottom
+
+            # Right and left projections
+            # Create 2 copies one for the right and one for the left
+            mesh_yz_right = mesh_yz.get_copy()
+            mesh_yz_left = mesh_yz.get_copy()
+            # Shift the center of mass of the projections to the center of the right and left faces of the AABB
+            mesh_yz_right = U.shift_center_of_mass(mesh_yz_right, tr_right)
+            mesh_yz_left = U.shift_center_of_mass(mesh_yz_left, tr_left)
+            # Add the projections to the dictionary
+            self.proj_yz[f"yz_right_{mesh_name}"] = mesh_yz_right
+            self.proj_yz[f"yz_left_{mesh_name}"] = mesh_yz_left
+
+
+
+        
+
+        
 
     def stats(self):
         """Print the statistics of the scene."""

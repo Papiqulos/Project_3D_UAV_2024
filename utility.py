@@ -295,13 +295,13 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
-# Not used
-def get_nearest_point(self, point:np.ndarray, mesh:Mesh3D) -> Point3D:
+def get_nearest_point(point:np.ndarray, mesh:Mesh3D, lst:bool = True) -> Point3D|np.ndarray:
         '''Get the nearest point to a given point on the mesh.
 
         Args:
             point
             mesh 
+            lst: If True, return the nearest point as a list, else return as a Point3D object
 
         Returns:
             nearest_point
@@ -314,7 +314,10 @@ def get_nearest_point(self, point:np.ndarray, mesh:Mesh3D) -> Point3D:
         # self.addShape(point, f"point{random.randint(0, 1000)}")
 
         nearest_node = KdNode.nearestNeighbor(point, kd_tree)
-        nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
+        if lst:
+            nearest_point = nearest_node.point
+        else:
+            nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
 
         return nearest_point
 
@@ -484,9 +487,19 @@ def get_surface_normal(mesh:Mesh3D, collision_point:np.ndarray) -> np.ndarray:
     Returns:
         normal: The surface normal at the collision point
     '''
-    trimesh_mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.triangles)
-    _, index_ray, index_tri = trimesh_mesh.ray.intersects_id([collision_point], return_locations=True)
-    normal = trimesh_mesh.face_normals[index_tri[0]]
+
+    nearest_vertex = get_nearest_point(collision_point, mesh)
+
+    # Get the nearest vertex index
+    nearest_vertex_index = np.where(np.all(mesh.vertices == nearest_vertex, axis=1))[0][0]
+
+    # Get the faces that contain the nearest vertex
+    faces = np.array(mesh.triangles)
+    vertex_faces = np.where(np.any(faces == nearest_vertex_index, axis=1))[0]
+
+    # Compute the average normal of the faces
+    normals = np.array(mesh.vertex_normals)
+    normal = np.mean(normals[vertex_faces], axis=0)
 
     return normal
 

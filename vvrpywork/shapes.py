@@ -2587,6 +2587,36 @@ class Cuboid3D(Shape):
             return np.array([(self.x_min + self.x_max)/2, (self.y_min + self.y_max)/2, (self.z_min + self.z_max)/2])
         else:
             return Point3D([(self.x_min + self.x_max)/2, (self.y_min + self.y_max)/2, (self.z_min + self.z_max)/2], color=Color.RED, size=10)
+        
+    # My addition
+    def get_face_centers(self, lst=True) -> List[Point3D]|List[NDArray3]:
+        '''Returns the centers of each face of the cuboid.
+        
+        Args:
+            lst: If True, returns the centers as a list of numpy arrays.
+            
+        Returns:
+            A list of Point3D objects representing the centers of each
+            face of the cuboid in the order: back xy, front xy, top xz, bottom xz, right yz, left yz.
+        '''
+        # Get the center of the cuboid
+        center = self.get_center(lst=True)
+        
+        # Get the centers of each face of the cuboid
+        centers = [center + np.array([0, 0, (self.z_max - self.z_min)/2]),  # Back xy 
+                    center + np.array([0, 0, -(self.z_max - self.z_min)/2]), # Front xy 
+                    center + np.array([0, (self.y_max - self.y_min)/2, 0]), # Top xz
+                    center + np.array([0, -(self.y_max - self.y_min)/2, 0]), # Bottom xz
+                    center + np.array([(self.x_max - self.x_min)/2, 0, 0]), # Right yz
+                    center + np.array([-(self.x_max - self.x_min)/2, 0, 0])] # Left yz
+         
+        # Transform the centers to Point3D objects
+        if lst:
+            centers = [np.array(center) for center in centers]
+        else:
+            centers = [Point3D(center, color=Color.CYAN, size=1) for center in centers]
+        
+        return centers
 
 class Cuboid3DGeneralized(Shape):
     '''A class used to represent a cuboid in 3D space.
@@ -3263,6 +3293,18 @@ class Mesh3D(ShapeSet):
         m.vertices = (((-1, 0, 0), (0, 1, 0), (0, 0, -1)) @ m.vertices.T).T
         m.vertex_normals = (((-1, 0, 0), (0, 1, 0), (0, 0, -1)) @ m.vertex_normals.T).T
         return m
+    
+    # My addition
+    def get_copy(self) -> Mesh3D:
+        """Returns a copy of the mesh."""
+        c_mesh = Mesh3D(color=self.color)
+        c_mesh.vertices = self.vertices
+        c_mesh.triangles = self.triangles
+        c_mesh.vertex_normals = self.vertex_normals
+        c_mesh.triangle_normals = self.triangle_normals
+        c_mesh.vertex_colors = self.vertex_colors
+
+        return c_mesh
     
 class Label3D(Shape):
     '''A class used to represent a text label in 3D space.'''
