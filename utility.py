@@ -519,7 +519,7 @@ def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
 
     return proj_mesh
 
-def get_min_max_extents_dop(mesh:Mesh3D, directions:np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def get_min_max_directions(mesh:Mesh3D, directions:np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Get the minimum and maximum extents as well as the dot products of a mesh in certain directions.
     
     Args:
