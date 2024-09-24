@@ -164,7 +164,7 @@ class Scene2D:
             # self._shapeDict[name].delete()
             del self._shapeDict[name]
 
-
+# Slight additions
 class Scene3D:
     # drawList = []
     def __init__(self, width, height, caption, output=False, n_sliders=0) -> None:
@@ -513,8 +513,7 @@ class Scene3D:
     #     It doesn't work!
     #     '''
     #     self.scene_widget.scene.show_axes(enable)
-        
-        
+           
 def get_rotation_matrix(angle, axis) -> np.ndarray:
     if isinstance(axis, (np.ndarray, list, tuple)):
         axis = np.array(axis)

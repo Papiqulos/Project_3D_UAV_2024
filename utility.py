@@ -3,7 +3,7 @@ import open3d as o3d
 import numpy as np
 from vvrpywork.constants import Color
 from vvrpywork.shapes import (
-    Point3D, Mesh3D, Cuboid3D
+    Point3D, Mesh3D
 )
 from itertools import combinations
 import trimesh
@@ -396,10 +396,10 @@ def intersect_cuboids(cuboid_a, cuboid_b):
 
     # Check if there is an intersection (if the min coordinates are less than the max coordinates)
     if np.all(intersect_min <= intersect_max):
-        return intersect_min, intersect_max
+        return intersect_min, intersect_max, True
     else:
         # print("The cuboids do not intersect.")
-        return None, None
+        return None, None, False
     
 def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False) -> bool|tuple[bool, np.ndarray]:
     """Check if two meshes are in collision using trimesh library.
@@ -467,6 +467,7 @@ def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
 
     return mesh
 
+# Not used
 def get_surface_normal(mesh:Mesh3D, collision_point:np.ndarray) -> np.ndarray:
     '''Computes the surface normal at a collision point on a mesh.
 
@@ -516,6 +517,9 @@ def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
     proj_mesh = Mesh3D(color=mesh.color)
     proj_mesh.vertices = v
     proj_mesh.triangles = mesh.triangles
+
+    proj_mesh.remove_duplicated_vertices()
+    proj_mesh.remove_unreferenced_vertices()
 
     return proj_mesh
 

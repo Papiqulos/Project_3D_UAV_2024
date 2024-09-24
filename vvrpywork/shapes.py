@@ -1555,7 +1555,6 @@ class Label2D(Shape):
     def color(self, color:ColorType):
         self._color = [*color, 1] if len(color) == 3 else [*color]
 
-
 class Point3D(Shape):
     '''A class used to represent a point in 3D space.'''
 
@@ -2214,7 +2213,7 @@ class Sphere3D(Shape):
         '''
         return (self.x - point.x) ** 2 + (self.y - point.y) ** 2 + (self.z - point.z) ** 2 <= self.radius ** 2
 
-# Added some methods to the class
+# Slight additions
 class Cuboid3D(Shape):
     '''A class used to represent a cuboid in 3D space.
     
@@ -3147,7 +3146,7 @@ class LineSet3D(ShapeSet):
         ls = o3d.geometry.LineSet.create_from_triangle_mesh(tm)
         return LineSet3D(np.asarray(ls.points), np.asarray(ls.lines), width, color)
 
-# Small additions
+# Slight additions
 class Mesh3D(ShapeSet):
     '''A class used to represent a triangle mesh in 3D space.'''
 
