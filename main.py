@@ -869,6 +869,37 @@ class UavSim(Scene3D):
         self.addShape(top, f"xz_top_{mesh_name}")
         self.addShape(right, f"yz_right_{mesh_name}")
 
+    def collision_detection_projections(self, mesh1:Mesh3D, mesh_name1:str, 
+                                        mesh2:Mesh3D, mesh_name2:str) -> bool:
+        '''Collision detection using the projections.
+        
+        Args:
+            mesh1 : The first mesh
+            mesh_name1 : The name of the first mesh
+            mesh2 : The second mesh
+            mesh_name2 : The name of the second mesh
+            
+        Returns:
+            col : True if the meshes MIGHT collide, False otherwise'''
+
+        start = time.time()
+        back1, top1, right1 = self.get_projections(mesh1, mesh_name1)
+        back2, top2, right2 = self.get_projections(mesh2, mesh_name2)
+
+
+        # Check for collisions in each face
+        col1 = self.collision_detection_aabbs(back1, f"xy_back_{mesh_name1}", back2, f"xy_back_{mesh_name2}", vis=False)
+        col2 = self.collision_detection_aabbs(top1, f"xz_top_{mesh_name1}", top2, f"xz_top_{mesh_name2}", vis=False)
+        col3 = self.collision_detection_aabbs(right1, f"yz_right_{mesh_name1}", right2, f"yz_right_{mesh_name2}", vis=False)
+
+        # if they collide in all the faces, then they MIGHT collide
+        col = col1 and col2 and col3
+
+        end = time.time()
+        self.projections_col_t[f"{mesh_name1}_{mesh_name2}"] = end - start
+
+        return col
+
     # COLLISION DETECTION FUNCTIONS
     def collision_detection_aabbs(self, mesh1:Mesh3D, mesh_name1:str, 
                                   mesh2:Mesh3D, mesh_name2:str, vis:bool = True) -> bool:
@@ -1011,37 +1042,6 @@ class UavSim(Scene3D):
                 self.addShape(point, f"col_point_{mesh_name1}_{mesh_name2}_{i}")
             
         return mesh_collision
-    
-    def collision_detection_projections(self, mesh1:Mesh3D, mesh_name1:str, 
-                                        mesh2:Mesh3D, mesh_name2:str) -> bool:
-        '''Collision detection using the projections.
-        
-        Args:
-            mesh1 : The first mesh
-            mesh_name1 : The name of the first mesh
-            mesh2 : The second mesh
-            mesh_name2 : The name of the second mesh
-            
-        Returns:
-            col : True if the meshes MIGHT collide, False otherwise'''
-
-        start = time.time()
-        back1, top1, right1 = self.get_projections(mesh1, mesh_name1)
-        back2, top2, right2 = self.get_projections(mesh2, mesh_name2)
-
-
-        # Check for collisions in each face
-        col1 = self.collision_detection_aabbs(back1, f"xy_back_{mesh_name1}", back2, f"xy_back_{mesh_name2}", vis=False)
-        col2 = self.collision_detection_aabbs(top1, f"xz_top_{mesh_name1}", top2, f"xz_top_{mesh_name2}", vis=False)
-        col3 = self.collision_detection_aabbs(right1, f"yz_right_{mesh_name1}", right2, f"yz_right_{mesh_name2}", vis=False)
-
-        # if they collide in all the faces, then they MIGHT collide
-        col = col1 and col2 and col3
-
-        end = time.time()
-        self.projections_col_t[f"{mesh_name1}_{mesh_name2}"] = end - start
-
-        return col
     
     # SIMULATION FUNCTIONS
     def on_idle(self):
