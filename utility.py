@@ -401,7 +401,7 @@ def intersect_cuboids(cuboid_a, cuboid_b):
         # print("The cuboids do not intersect.")
         return None, None, False
     
-def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False, return_normals:bool = False) -> bool|tuple[bool, np.ndarray]|tuple[bool, np.ndarray, np.ndarray]:
+def collision(mesh1:Mesh3D, mesh2:Mesh3D, points_flag:bool = False, normal_flag:bool = False) -> bool|tuple[bool, np.ndarray]|tuple[bool, np.ndarray, np.ndarray]:
     """Check if two meshes are in collision using trimesh library.
     
     Args:
@@ -421,11 +421,11 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False, return_nor
     collision_manager.add_object("trimesh1", trimesh1)
     collision_manager.add_object("trimesh2", trimesh2)
 
-    if return_points:
+    if points_flag:
         collision, point_objs = collision_manager.in_collision_internal(return_data=True)
         points = np.array([point_obj.point for point_obj in point_objs])
         normals = np.array([point_obj.normal for point_obj in point_objs])
-        if return_normals:
+        if normal_flag:
             return collision, points, normals
         else:
             return collision, points
@@ -471,46 +471,6 @@ def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
     mesh.vertices /= max_distance
 
     return mesh
-
-
-# Not used
-def find_triangle_from_point(mesh:Mesh3D, point:np.ndarray) -> np.ndarray:
-    """Find the triangle in a mesh that contains a given point."""
-
-    # Convert the mesh to a trimesh object
-    trimesh_obj = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.triangles)
-
-    # Find the triangle that contains the point
-    triangle_id = trimesh_obj.ray.intersects_id([point], [np.array([0, 0, 1])])
-    if len(triangle_id) > 0:
-        triangle_id = triangle_id[0]
-    else:
-        return None
-
-    return trimesh_obj.faces[triangle_id]
-
-# Not used
-def get_surface_normal(mesh:Mesh3D, triangle:np.ndarray) -> np.ndarray:
-    '''Computes the surface normal at a collision point on a mesh.
-
-    Args:
-        mesh: The mesh
-        triangle: The triangle at the collision point
-
-    Returns:
-        normal: The surface normal at the collision point
-    '''
-    vertices = np.array(mesh.vertices)
-    v0, v1, v2 = vertices[triangle]
-
-    # Compute the normal vector
-    u = v1 - v0
-    v = v2 - v0
-    normal = np.cross(u, v)
-    normal = normal / np.linalg.norm(normal)
-    
-
-    return normal
 
 def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
     """Get the projection of a mesh on a plane.
