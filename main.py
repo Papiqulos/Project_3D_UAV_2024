@@ -106,11 +106,14 @@ class UavSim(Scene3D):
         # Dictionary to store the collision points
         self.collision_points = {}
 
+        # Dictionary to store the collision normals
+        self.collision_normals = {}
+
         # Dictionary to store all the misc geometries(For the labels and temporary geometries for testing)
         self.misc_geometries = {}
 
         ## Simulation variables
-        self.dt = 0.03 # Time step
+        self.dt = 0.01 # Time step
         self.paused = True # Pause the simulation
         self.paused_no_collisions = True # Pause the simulation without collisions
         self.pause_landing_simulation = True # Pause the landing protocol
@@ -401,7 +404,7 @@ class UavSim(Scene3D):
         if symbol == Key.T:
             # Start/Pause the simulation
             self.paused = not self.paused
-            self.print(f"-Paused: {self.paused}")
+            self.print(f"--Simulation paused: {self.paused}")
 
         if symbol == Key.F:
             # Start/Pause the simulation without collisions
@@ -434,6 +437,7 @@ class UavSim(Scene3D):
 
     def reset_scene(self) -> None:
         '''REMOVE FROM THE SCENE AND DELETE FROM MEMORY EVERYTHING'''
+        # Clear the scene
         # AABBs, CHs, KDOPs, collision points, labels and misc geometries
         self.clear_attributes()
         # Drones and projections
@@ -453,7 +457,8 @@ class UavSim(Scene3D):
             self.removeShape(name)
         for name in self.misc_geometries.keys():
             self.removeShape(name)
-       
+
+        # Clear the dictionaries
         self.meshes = {}
         self.aabbs = {}
         self.convex_hulls = {}
@@ -461,22 +466,38 @@ class UavSim(Scene3D):
         self.projections = {}
         self.collision_aabbs = {}
         self.collision_points = {}
+        self.collision_normals = {} 
+        self.speeds = {}
+        self.landed_meshes = {}
+        self.ch_t = {"": 0}
+        self.aabb_t = {"": 0}
+        self.kdop_t = {"": 0}
+        self.projections_t = {"": 0}
+        self.ch_col_t = {"": 0}
+        self.aabb_col_t = {"": 0}
+        self.kdop_col_t = {"": 0}
+        self.mesh_col_t = {"": 0}
+        self.projections_col_t = {"": 0}
         self.misc_geometries = {}
         self.in_bounds = {}
     
-    def clear_attributes(self) -> None:
+    def clear_attributes(self, vols:bool=True, col_points:bool=True, col_aabbs:bool=True, misc:bool=True) -> None:
         # Remove any aabbs, chs, kdops, collision points and labels from the scene
-        for mesh_name in self.meshes.keys():
-            self.removeShape(f"aabb_{mesh_name}")
-            self.removeShape(f"convex_hull_{mesh_name}")
-            self.removeShape(f"14dop_{mesh_name}")
-            self.removeShape(f"label_{mesh_name}")
-        for name in self.collision_aabbs.keys():
-            self.removeShape(name)
-        for name in self.collision_points.keys():
-            self.removeShape(name)
-        for name in self.misc_geometries.keys():
-            self.removeShape(name)
+        if vols:
+            for mesh_name in self.meshes.keys():
+                self.removeShape(f"aabb_{mesh_name}")
+                self.removeShape(f"convex_hull_{mesh_name}")
+                self.removeShape(f"14dop_{mesh_name}")
+                self.removeShape(f"label_{mesh_name}")
+        if col_aabbs:
+            for name in self.collision_aabbs.keys():
+                self.removeShape(name)
+        if col_points:  
+            for name in self.collision_points.keys():
+                self.removeShape(name)
+        if misc:
+            for name in self.misc_geometries.keys():
+                self.removeShape(name)
         
     # SETTING UP THE SCENE
     def landing_pad(self, size:float, height:float = 0.2) -> None:
@@ -1022,20 +1043,26 @@ class UavSim(Scene3D):
             return False
         
         # Most accurate and slowest
-        mesh_collision, points = U.collision(mesh1, mesh2, return_points=True)
+        mesh_collision, points, normals = U.collision(mesh1, mesh2, return_points=True, return_normals=True)
+        
         if not mesh_collision:
             return False
-                
+            
+        # Stats
         end = time.time()
         self.mesh_col_t[f"{mesh_name1}_{mesh_name2}"] = end - start
-        if vis:
-            # Add the collision points to the scene
-            for i, point in enumerate(points):
-                point = Point3D(point, color=Color.CYAN, size=1)
-                self.collision_points[f"col_point_{mesh_name1}_{mesh_name2}_{i}"] = point
+
+        # Store the normals
+        for i, normal in enumerate(normals):
+            self.collision_normals[f"col_normal_{mesh_name1}_{mesh_name2}_{i}"] = normal
+        
+        # Store the collision points and optionally visualize them
+        for i, point in enumerate(points):
+            point = Point3D(point, color=Color.CYAN, size=1)
+            self.collision_points[f"col_point_{mesh_name1}_{mesh_name2}_{i}"] = point
+            if vis:
                 self.addShape(point, f"col_point_{mesh_name1}_{mesh_name2}_{i}")
             
-        # Check for collision
         return mesh_collision
     
     # SIMULATION FUNCTIONS
@@ -1164,14 +1191,15 @@ class UavSim(Scene3D):
     def simulate(self):
         '''Simulate the scene, moving the drones and stopping them if they collide.'''
 
-        # Remove any aabbs, chs, kdops, collision points and labels from the scene
-        self.clear_attributes()
+        # Remove any aabbs, chs, kdops and labels from the scene
+        self.clear_attributes(col_points=False)
 
         for mesh_name, mesh in self.meshes.items():
 
             # If all the drones have zero speeds, pause the simulation
             if all(np.array_equal(speed, np.array([0, 0, 0])) for speed in self.speeds.values()):
                 self.paused = not self.paused
+                self.print(f"--Simulation paused: {self.paused}")
                 return
             
             # If all drones are out of bounds, reset the scene
@@ -1212,7 +1240,7 @@ class UavSim(Scene3D):
         '''Simulate the scene , moving the dornes and changing their speed if they collide to avoid collisions.'''
 
         # Remove any aabbs, chs, kdops, collision points and labels from the scene
-        # self.clear_attributes()
+        self.clear_attributes()
 
         for mesh_name, mesh in self.meshes.items():
 
@@ -1240,39 +1268,22 @@ class UavSim(Scene3D):
                 # Skip the same mesh
                 if mesh_name > mesh_name2:
                     
-                    # Get a copy of the drone in the next 6 frames
+                    # Get a copy of the drone in the next few frames
                     mesh_copy = mesh.get_copy()
-                    mesh_copy.vertices += 6 * self.speeds[mesh_name]
+                    mesh_copy.vertices += 8 * self.speeds[mesh_name]
 
-                    # Check for collisions between the drone in the next 6 frames and all the other drones in the current frame
+                    # Check for collisions between the drone in the next few frames and all the other drones in the current frame
                     #  and adjust the speed to avoid them
                     if self.collision_detection_meshes(mesh_copy, mesh_name, mesh2, mesh_name2, vis=False):
                         self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
-                        ## DOESNT WORK THEY DONT AVOID COLLISIONS
-                        # Calculate the surface normal of the collision point
-                        # collision_point = self.collision_points[f"col_point_{mesh_name}_{mesh_name2}_0"]
-                        # collision_point = np.array([collision_point.x, collision_point.y, collision_point.z])
-                        # collision_point_index = np.where(mesh.vertices == collision_point)[0][0]
-                        # print(collision_point_index)
-                        # surface_normal = mesh.vertex_normals[collision_point_index]
+                        # Calculate the surface normal of the first collision point
+                        surface_normal = self.collision_normals[f"col_normal_{mesh_name}_{mesh_name2}_0"]
 
-                        # # Change the speed of the drones to avoid collisions
-                        # new_speed1 = surface_normal
-                        # print(new_speed1)
-                        # self.speeds[mesh_name] = new_speed1
-
-                        # Get the current speeds of the drones
-                        speed1 = self.speeds[mesh_name]
-                        speed2 = self.speeds[mesh_name2]
-
-                        # Reverse the speeds of the drones
-                        new_speed1 = -1 * speed1
-                        new_speed2 = -1 * speed2
-
-                        # Update the speeds of the drones
+                        # Change the speed of the drones to avoid collisions(reflect the mesh's velocity vector across the collision surface normal)
+                        new_speed1 = self.speeds[mesh_name]  - 2 * np.dot(self.speeds[mesh_name], surface_normal) * surface_normal
                         self.speeds[mesh_name] = new_speed1
-                        self.speeds[mesh_name2] = new_speed2                  
+                 
                                                  
     def landing_protocol(self):
         '''Simulate the landing protocol.'''
@@ -1290,11 +1301,9 @@ class UavSim(Scene3D):
 
         for i, (mesh_name, mesh) in enumerate(self.meshes.items()):
 
-
             landing_pad = list(self.landing_pads.values())[i]
             landing_point = landing_pad.get_center() + np.array([0, 0.3, 0]) # adjust the landing point so that the drone is above the landing pad, not inside it
-
-
+            
             # Calculate the distance between the drone and the landing pad
             distance = np.linalg.norm(mesh.get_center() - landing_point)
 
@@ -1309,19 +1318,30 @@ class UavSim(Scene3D):
                 self.speeds[mesh_name] = (direction / np.linalg.norm(direction)) * speed_modifier
                 self.move_drone(mesh, mesh_name, self.speeds[mesh_name])
 
-                # Check for collisions and adjust the speed to avoid them
+                # Check for collisions between the drone in the next few frames and all the other drones in the current frame
+                #  and adjust the speed to avoid them
                 for mesh_name2, mesh2 in self.meshes.items():
                     if mesh_name > mesh_name2:
 
-                        # Get a copy of the drone in the next 6 frames
+                        # Get a copy of the drone in the next few frames
                         mesh_copy = mesh.get_copy()
                         mesh_copy.vertices += 6 * self.speeds[mesh_name]
 
                         if self.collision_detection_meshes(mesh_copy, mesh_name, mesh2, mesh_name2, vis=False):
                             self.print(f"-Mesh3D collision between {mesh_name} and {mesh_name2}")
 
-                            # Change the vertical speed of the drone to avoid collisions
-                            self.speeds[mesh_name] += 0.1
+                            # Calculate the surface normal of the first collision point
+                            surface_normal = self.collision_normals[f"col_normal_{mesh_name}_{mesh_name2}_0"]
+
+                            # Change the speed of the drones to avoid collisions
+                            # Reflect the mesh's velocity vector across the collision surface normal
+                            new_speed1 = self.speeds[mesh_name]  - 2 * np.dot(self.speeds[mesh_name], surface_normal) * surface_normal
+                            self.speeds[mesh_name] = new_speed1
+
+                            # Move the drone for a few frames with the avoidance speed and then continue moving to the landing pad
+                            for _ in range(3):
+                                self.move_drone(mesh, mesh_name, self.speeds[mesh_name])
+                            
 
                 # Land one drone at a time
                 return
@@ -1337,6 +1357,7 @@ class UavSim(Scene3D):
 
                 # If all the drones have landed, pause the landing simulation
                 if len(self.landed_meshes) == len(self.meshes):
+                    self.print("All drones have landed")
                     self.pause_landing_simulation = True 
                 continue
 

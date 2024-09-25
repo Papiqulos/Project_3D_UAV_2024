@@ -401,13 +401,14 @@ def intersect_cuboids(cuboid_a, cuboid_b):
         # print("The cuboids do not intersect.")
         return None, None, False
     
-def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False) -> bool|tuple[bool, np.ndarray]:
+def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False, return_normals:bool = False) -> bool|tuple[bool, np.ndarray]|tuple[bool, np.ndarray, np.ndarray]:
     """Check if two meshes are in collision using trimesh library.
     
     Args:
     - mesh1: First mesh
     - mesh2: Second mesh
     - points_flag: If True, return the collision points
+    - normal_flag: If True, return the collision normals
     
     Returns:
     - True if the meshes are in collision, False otherwise
@@ -423,7 +424,11 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D, return_points:bool = False) -> bool|tu
     if return_points:
         collision, point_objs = collision_manager.in_collision_internal(return_data=True)
         points = np.array([point_obj.point for point_obj in point_objs])
-        return collision, points
+        normals = np.array([point_obj.normal for point_obj in point_objs])
+        if return_normals:
+            return collision, points, normals
+        else:
+            return collision, points
     else:
         return collision_manager.in_collision_internal()
         
@@ -467,30 +472,43 @@ def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
 
     return mesh
 
+
 # Not used
-def get_surface_normal(mesh:Mesh3D, collision_point:np.ndarray) -> np.ndarray:
+def find_triangle_from_point(mesh:Mesh3D, point:np.ndarray) -> np.ndarray:
+    """Find the triangle in a mesh that contains a given point."""
+
+    # Convert the mesh to a trimesh object
+    trimesh_obj = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.triangles)
+
+    # Find the triangle that contains the point
+    triangle_id = trimesh_obj.ray.intersects_id([point], [np.array([0, 0, 1])])
+    if len(triangle_id) > 0:
+        triangle_id = triangle_id[0]
+    else:
+        return None
+
+    return trimesh_obj.faces[triangle_id]
+
+# Not used
+def get_surface_normal(mesh:Mesh3D, triangle:np.ndarray) -> np.ndarray:
     '''Computes the surface normal at a collision point on a mesh.
 
     Args:
         mesh: The mesh
-        collision_point: The collision point
+        triangle: The triangle at the collision point
 
     Returns:
         normal: The surface normal at the collision point
     '''
+    vertices = np.array(mesh.vertices)
+    v0, v1, v2 = vertices[triangle]
 
-    nearest_vertex = get_nearest_point(collision_point, mesh)
-
-    # Get the nearest vertex index
-    nearest_vertex_index = np.where(np.all(mesh.vertices == nearest_vertex, axis=1))[0][0]
-
-    # Get the faces that contain the nearest vertex
-    faces = np.array(mesh.triangles)
-    vertex_faces = np.where(np.any(faces == nearest_vertex_index, axis=1))[0]
-
-    # Compute the average normal of the faces
-    normals = np.array(mesh.vertex_normals)
-    normal = np.mean(normals[vertex_faces], axis=0)
+    # Compute the normal vector
+    u = v1 - v0
+    v = v2 - v0
+    normal = np.cross(u, v)
+    normal = normal / np.linalg.norm(normal)
+    
 
     return normal
 
