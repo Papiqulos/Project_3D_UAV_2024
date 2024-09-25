@@ -17,7 +17,7 @@ Make sure you have the following prerequisites:
 git clone https://github.com/Papiqulos/Project_3D_UAV_2024
 ```
 
-### 2. Create and Activate a Conda Environment
+### 2. Create and Activate a VIrtual Environment (Conda Recommended)
 
 Use the following commands to create and activate a new conda environment:
 
