@@ -143,7 +143,7 @@ class UavSim(Scene3D):
 
         # Create the landing pad
         self.landing_pad(self.N)
-        self.y_bound = 10
+        self.y_bound = 15
 
         ## Bounding cuboid
         # Get the bounds of the landing pad
@@ -154,7 +154,7 @@ class UavSim(Scene3D):
         
         bottom_right_point = bottom_right_corner_plane.get_all_points(lst=True)[4]
         
-        self.bounding_cuboid = Cuboid3D(p1=top_left_point, p2=bottom_right_point+[0, self.y_bound, 0], color=Color.RED, filled=False)
+        self.bounding_cuboid = Cuboid3D(p1=2*top_left_point, p2=2*bottom_right_point+[0, self.y_bound, 0], color=Color.RED, filled=False)
         self.shown_bounds = True
     
     # INTERACTION FUNCTIONS
@@ -187,32 +187,10 @@ class UavSim(Scene3D):
         if symbol == Key.S:
 
             # If no drones exist, show them
-            # if self.meshes:
-            #     self.print("Drones already exist. Clear them first.")
-            #     return
-            # self.show_drones(self.num_of_drones, rand_rot=False, label=False)
-
-
-
-            ## TESTING
-            mesh1 = Mesh3D(path="models/F52.obj", color=Color.RED)
-            mesh1 = U.unit_sphere_normalization(mesh1)
-            mesh2 = Mesh3D(path="models/Helicopter.obj", color=Color.GREEN)
-            mesh2 = U.unit_sphere_normalization(mesh2)
-
-            self.meshes["drone_1"] = mesh1
-            self.meshes["drone_2"] = mesh2
-
-            self.speeds["drone_1"] = SPEED_MAP[mesh1.path]
-            self.speeds["drone_2"] = SPEED_MAP[mesh2.path]
-
-            self.addShape(mesh1, "drone_1")
-            self.addShape(mesh2, "drone_2")
-
-            self.in_bounds = self.meshes.copy()
-
-            self.move_drone_to_point(mesh1, "drone_1", [0, 6, 0])
-            self.move_drone_to_point(mesh2, "drone_2", [0, 8, 0])
+            if self.meshes:
+                self.print("Drones already exist. Clear them first.")
+                return
+            self.show_drones(self.num_of_drones, rand_rot=False, label=False)
         
         if symbol == Key.P:
 
@@ -403,16 +381,28 @@ class UavSim(Scene3D):
                                 self.print(f"-Projections collision between {mesh_name} and {mesh_name2}")
 
         if symbol == Key.T:
+            # Pause all the other simulations
+            self.paused_no_collisions = True
+            self.pause_landing_simulation = True
+
             # Start/Pause the simulation
             self.paused = not self.paused
             self.print(f"--Simulation paused: {self.paused}")
 
         if symbol == Key.F:
+            # Pause all the other simulations
+            self.paused = True
+            self.pause_landing_simulation = True
+
             # Start/Pause the simulation without collisions
             self.paused_no_collisions = not self.paused_no_collisions       
             self.print(f"-Paused_no_collision: {self.paused_no_collisions}")
 
         if symbol == Key.SPACE:
+            # Pause all the other simulations
+            self.paused = True
+            self.paused_no_collisions = True
+    
             # Start/Pause the landing protocol
             self.pause_landing_simulation = not self.pause_landing_simulation
 
