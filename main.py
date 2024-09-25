@@ -158,7 +158,8 @@ class UavSim(Scene3D):
         self.shown_bounds = True
     
     # INTERACTION FUNCTIONS
-    def display_commands(self):
+    def display_commands(self) -> None:
+        """Display the commands for the simulation."""
         self.print("\
         R: Clear scene\n\
         B: Toggle bounds\n\
@@ -178,7 +179,7 @@ class UavSim(Scene3D):
         Q: Show statistics\n\
         SPACE: Landing Protocol\n\n\n")
 
-    def on_key_press(self, symbol, modifiers):
+    def on_key_press(self, symbol, modifiers) -> None:
 
         if symbol == Key.R:
             self.reset_scene()
@@ -427,16 +428,16 @@ class UavSim(Scene3D):
         if symbol == Key.Q:
             self.stats()
 
-    def reset_sliders(self):
+    def reset_sliders(self) -> None:
         self.set_slider_value(0, 0.6)
     
-    def on_slider_change(self, slider_id, value):
+    def on_slider_change(self, slider_id, value) -> None:
 
         if slider_id == 0:
             self.num_of_drones = int(10 * value)
 
     def reset_scene(self) -> None:
-        '''REMOVE FROM THE SCENE AND DELETE FROM MEMORY EVERYTHING'''
+        """Reset the scene and clear all the geometries from memory."""
         # Clear the scene
         # AABBs, CHs, KDOPs, collision points, labels and misc geometries
         self.clear_attributes()
@@ -482,6 +483,14 @@ class UavSim(Scene3D):
         self.in_bounds = {}
     
     def clear_attributes(self, vols:bool=True, col_points:bool=True, col_aabbs:bool=True, misc:bool=True) -> None:
+        """Clear select geometries from the scene.
+        
+        Args:
+            vols : Whether to remove the volumes(Convex Hulls, AABBs, 14-DOPs)
+            col_points : Whether to remove the collision points
+            col_aabbs : Whether to remove the collision AABBs
+            misc : Whether to remove the misc geometries(labels, temporary geometries)
+        """
         # Remove any aabbs, chs, kdops, collision points and labels from the scene
         if vols:
             for mesh_name in self.meshes.keys():
@@ -505,6 +514,7 @@ class UavSim(Scene3D):
         
         Args:
             size : The size of the landing pad
+            height : The height of the landing pad
         '''
         
         for i in range(self.N):
@@ -557,7 +567,7 @@ class UavSim(Scene3D):
         self.in_bounds = self.meshes.copy()
 
     def randomize_mesh(self, mesh: Mesh3D, drone_id:int, trans_thresold:float = 2.0, label:bool = False, rand_rot:bool = True) -> Mesh3D:
-        '''Fits the mesh into the unit sphere and randomly translates it and rotates it.
+        '''Fits the mesh into the unit sphere and randomly translates it and/or rotates it.
 
         Args:
             mesh : The mesh
@@ -607,12 +617,14 @@ class UavSim(Scene3D):
 
     # VOLUMES' FUNCTIONS(Convex Hulls, AABBs, 14-DOPs) and Projections
     def get_convex_hull(self, mesh:Mesh3D, mesh_name:str) -> Mesh3D:
-        '''Construct the convex hull of the mesh using Open3D.'''
-
-        # Doesnt work
-        # Check if the convex hull already exists
-        # if f"convex_hull_{mesh_name}" in self.convex_hulls:
-        #     return self.convex_hulls[f"convex_hull_{mesh_name}"]
+        """Construct the convex hull of the mesh using Open3D.
+        
+        Args:
+            mesh: The mesh
+            mesh_name: The name of the mesh
+            
+        Returns:
+            ch_mesh: The convex hull of the mesh"""
         
         # Convert the Mesh3D object to an Open3D mesh
         o3d_mesh = U.mesh_to_o3d(mesh)
@@ -645,12 +657,14 @@ class UavSim(Scene3D):
         self.addShape(ch_mesh, f"convex_hull_{mesh_name}")
 
     def get_aabb(self, mesh:Mesh3D, mesh_name:str) -> Cuboid3D:
-        '''Computes the axis-aligned bounding box (AABB) of a mesh.'''
-
-        # Doesnt work
-        # Check if the AABB already exists
-        # if f"aabb_{mesh_name}" in self.aabbs:
-        #     return self.aabbs[f"aabb_{mesh_name}"]
+        """Computes the axis-aligned bounding box (AABB) of a mesh.
+        
+        Args:
+            mesh: The mesh
+            mesh_name: The name of the mesh
+            
+        Returns:
+            aabb: The axis-aligned bounding box of the mesh"""
         
         vertices = np.array(mesh.vertices)
         
@@ -687,17 +701,12 @@ class UavSim(Scene3D):
         '''Computes the 14-discrete oriented polytope (k-DOP) of a mesh.
         
         Args:
-            mesh: The mesh
-            mesh_name: The name of the mesh
+            mesh : The mesh
+            mesh_name : The name of the mesh
         
         Returns:
-            ch_mesh: The 14-DOP
+            ch_mesh : The 14-DOP
         '''
-        
-        # Doesnt work
-        # Check if the 14-DOP already exists
-        # if f"14dop_{mesh_name}" in self.kdops:
-        #     return self.kdops[f"14dop_{mesh_name}"]
     
         vertices = np.array(mesh.vertices)
         
@@ -819,13 +828,11 @@ class UavSim(Scene3D):
         """Get the projections of the mesh to the faces of the bounding cuboid.
         
         Args:
-            - mesh : The mesh
-            - mesh_name : The name of the mesh
+            mesh : The mesh
+            mesh_name : The name of the mesh
             
         Returns:
-            mesh_xy_back : The projection of the mesh to the xy-plane of the back face of the bounding cuboid
-            mesh_xz_top : The projection of the mesh to the xz-plane of the top face of the bounding cuboid
-            mesh_yz_right : The projection of the mesh to the yz-plane of the right face of the bounding cuboid"""
+            tuple containing the projections to the xy-plane, xz-plane and yz-plane"""
 
         # Check if the projections already exist
         if  f"xy_back_{mesh_name}" in self.projections \
@@ -873,8 +880,8 @@ class UavSim(Scene3D):
         """Compute the projections of the mesh to the faces of the bounding cuboid and show them in the scene.
         
         Args:
-            - mesh : The mesh
-            - mesh_name : The name of the mesh"""
+            mesh : The mesh
+            mesh_name : The name of the mesh"""
 
         start = time.time()
         back, top, right = self.get_projections(mesh, mesh_name) 
@@ -889,33 +896,27 @@ class UavSim(Scene3D):
 
     # COLLISION DETECTION FUNCTIONS
     def collision_detection_aabbs(self, mesh1:Mesh3D, mesh_name1:str, mesh2:Mesh3D, mesh_name2:str, vis:bool = True) -> bool:
-        '''Collision detection using the AABBs.
+        """Collision detection using the AABBs.
         
         Args:
-            - mesh1: The first mesh
-            - mesh1_name: The name of the first mesh
-            - mesh2: The second mesh
-            - mesh2_name: The name of the second mesh
-            - vis: Whether to visualize the intersecting cuboid or not
+            mesh1 : The first mesh
+            mesh1_name : The name of the first mesh
+            mesh2 : The second mesh
+            mesh2_name : The name of the second mesh
+            vis : Whether to visualize the intersecting cuboid or not
             
         Returns:
-            - inter: True if the meshes intersect, False otherwise'''
+            inter : True if the meshes intersect, False otherwise"""
 
         start = time.time()
         aabb1 = self.get_aabb(mesh1, mesh_name1)
         aabb2 = self.get_aabb(mesh2, mesh_name2)
+
         # Find the intersecting cuboid of the two AABBs
         inter_min, inter_max, inter = U.intersect_cuboids(aabb1, aabb2)
         if inter:
             if vis:
                 # Visualize the intersecting cuboid
-
-                # A label for the intersecting cuboid
-                # label = Label3D(inter_min, f"inter_cuboid_{mesh1_name}_{mesh2_name}", color=Color.BLACK)
-                # self.addShape(label, f"label_inter_cuboid_{mesh1_name}_{mesh2_name}")
-                # self.misc_geometries[f"label_inter_cuboid_{mesh1_name}_{mesh2_name}"] = label
-
-                # The intersecting cuboid
                 inter_cuboid = Cuboid3D(p1=inter_min, p2=inter_max, color=Color.CYAN, filled=False)
                 self.addShape(inter_cuboid, f"inter_cuboid_{mesh_name1}_{mesh_name2}")
                 self.collision_aabbs[f"inter_cuboid_{mesh_name1}_{mesh_name2}"] = inter_cuboid
@@ -929,13 +930,13 @@ class UavSim(Scene3D):
         '''Collision detection using the Convex Hulls.
         
         Args:
-            - mesh1: The first mesh
-            - mesh_name1: The name of the first mesh
-            - mesh2: The second mesh
-            - mesh_name2: The name of the second mesh
+            mesh1 : The first mesh
+            mesh_name1 : The name of the first mesh
+            mesh2 : The second mesh
+            mesh_name2 : The name of the second mesh
             
         Returns:
-            - True if the meshes intersect, False otherwise'''
+            col : True if the meshes intersect, False otherwise'''
         
         start = time.time()
         ch1 = self.get_convex_hull(mesh1, mesh_name1)
@@ -947,16 +948,16 @@ class UavSim(Scene3D):
         return col
 
     def collision_detection_kdops(self, mesh1:Mesh3D, mesh_name1:str, mesh2:Mesh3D, mesh_name2:str) -> bool:
-        '''Collision detection using the 14-DOPs.
+        """Collision detection using the 14-DOPs.
         
         Args:
-            - mesh1: The first mesh
-            - mesh_name1: The name of the first mesh
-            - mesh2: The second mesh
-            - mesh_name2: The name of the second mesh
+            mesh1: The first mesh
+            mesh_name1: The name of the first mesh
+            mesh2: The second mesh
+            mesh_name2: The name of the second mesh
             
         Returns:
-            - True if the meshes intersect, False otherwise'''
+            col : True if the meshes intersect, False otherwise"""
 
         start = time.time()
         # Get the minimum and maximum extents of the 14-DOPs
@@ -982,13 +983,13 @@ class UavSim(Scene3D):
         '''Collision detection using the projections.
         
         Args:
-            - mesh1: The first mesh
-            - mesh_name1: The name of the first mesh
-            - mesh2: The second mesh
-            - mesh_name2: The name of the second mesh
+            mesh1 : The first mesh
+            mesh_name1 : The name of the first mesh
+            mesh2 : The second mesh
+            mesh_name2 : The name of the second mesh
             
         Returns:
-            - True if the meshes MIGHT collide, False otherwise'''
+            col : True if the meshes MIGHT collide, False otherwise'''
 
         start = time.time()
         back1, top1, right1 = self.get_projections(mesh1, mesh_name1)
@@ -1017,14 +1018,14 @@ class UavSim(Scene3D):
         '''Collision detection using the meshes themselves and optionally visualizing the points.
         
         Args:
-            - mesh1: The first mesh
-            - mesh_name1: The name of the first mesh
-            - mesh2: The second mesh
-            - mesh_name2: The name of the second mesh
-            - vis: Whether to visualize the collision points or not 
+            mesh1 : The first mesh
+            mesh_name1 : The name of the first mesh
+            mesh2 : The second mesh
+            mesh_name2 : The name of the second mesh
+            vis : Whether to visualize the collision points or not 
             
         Returns:
-            - True if the meshes intersect, False otherwise'''
+            mesh_collision : True if the meshes intersect, False otherwise'''
         
         start = time.time()
         # Check for collisions using the fastest (and least accurate) methods first
@@ -1117,14 +1118,14 @@ class UavSim(Scene3D):
         return False
     
     def move_drone(self, mesh:Mesh3D, mesh_name:str, speed:np.ndarray, label_f:bool=False) -> None:
-        '''Move the drone and its projections with a certain speed.
+        """Move the drone and its projections with a certain speed.
         
         Args:
-            - mesh : The mesh
-            - mesh_name : The name of the mesh
-            - speed : The speed of the drone
-            - label_f : Whether to move the label or not
-        '''
+            mesh : The mesh
+            mesh_name : The name of the mesh
+            speed : The speed of the drone
+            label_f : Whether to move the label or not
+        """
         self.last_update = time.time() 
         translation_vector = speed
         
@@ -1132,13 +1133,13 @@ class UavSim(Scene3D):
         mesh.vertices += translation_vector
         self.updateShape(mesh_name, quick=True)
 
-        # if label_f:
-        #     # Move the label
-        #     label = self.misc_geometries[f"label_{mesh_name}"]
-        #     label.x += translation_vector[0]
-        #     label.y += translation_vector[1]
-        #     label.z += translation_vector[2]
-        #     self.updateShape(f"label_{mesh_name}", quick=True)
+        if label_f:
+            # Move the label
+            label = self.misc_geometries[f"label_{mesh_name}"]
+            label.x += translation_vector[0]
+            label.y += translation_vector[1]
+            label.z += translation_vector[2]
+            self.updateShape(f"label_{mesh_name}", quick=True)
 
         ## Move the projections
         # Get the projections
@@ -1157,33 +1158,14 @@ class UavSim(Scene3D):
         right.vertices += [0, translation_vector[1], translation_vector[2]]
         self.updateShape(f"yz_right_{mesh_name}", quick=True)
 
-        ## Move the volumes
-        # Get the AABB
-        # aabb = self.get_aabb(mesh, mesh_name)
-        # aabb.translate(translation_vector)
-        # self.aabbs[f"aabb_{mesh_name}"] = aabb
-        # self.updateShape(f"aabb_{mesh_name}", quick=True)
-
-        # # Get the convex hull
-        # ch = self.get_convex_hull(mesh, mesh_name)
-        # ch.vertices += translation_vector
-        # # self.convex_hulls[f"convex_hull_{mesh_name}"] = ch
-        # self.updateShape(f"convex_hull_{mesh_name}", quick=True)
-
-        # # Get the 14-DOP
-        # kdop = self.get_14dop(mesh, mesh_name)
-        # kdop.vertices += translation_vector
-        # # self.kdops[f"14dop_{mesh_name}"] = kdop
-        # self.updateShape(f"14dop_{mesh_name}", quick=True)
-
     def move_drone_to_point(self, mesh:Mesh3D, mesh_name:str, point:np.ndarray, label_f:bool=False) -> None:
-        '''Move the drone to a point.
+        """Move the drone to a point.
         
         Args:
-            - mesh : The mesh
-            - mesh_name : The name of the mesh
-            - point : The point
-        '''
+            mesh : The mesh
+            mesh_name : The name of the mesh
+            point : The point
+        """
         self.last_update = time.time() 
         # Move the drone
         mesh = U.shift_center_of_mass(mesh, point)
@@ -1197,9 +1179,7 @@ class UavSim(Scene3D):
             self.updateShape(f"label_{mesh_name}")
 
     def simulate(self):
-        '''Simulate the scene, moving the drones and stopping them if they collide.'''
-
-        # self.last_update = time.time()
+        """Simulate the scene, moving the drones and stopping them if they collide."""
 
         # Remove any aabbs, chs, kdops and labels from the scene
         self.clear_attributes(col_points=False)
@@ -1247,18 +1227,12 @@ class UavSim(Scene3D):
                         self.speeds[mesh_name2] = np.array([0, 0, 0])
 
     def simulate_no_collisions(self):
-        '''Simulate the scene , moving the dornes and changing their speed if they collide to avoid collisions.'''
-        
-        # self.last_update = time.time()
+        """Simulate the scene , moving the dornes and changing their speed if they collide to avoid collisions."""
 
         # Remove any aabbs, chs, kdops, collision points and labels from the scene
         self.clear_attributes()
 
         for mesh_name1, mesh1 in self.meshes.items():
-            
-            # If the drone has zero speed, make its speed the default speed of the model
-            # if np.array_equal(self.speeds[mesh_name1], np.array([0, 0, 0])):
-            #     self.speeds[mesh_name1] = -SPEED_MAP[mesh1.path]
 
             # If all the drones are out of bounds, reset the scene
             if self.in_bounds == {}:
@@ -1308,8 +1282,6 @@ class UavSim(Scene3D):
                                                              
     def landing_protocol(self):
         '''Simulate the landing protocol.'''
-        
-        # self.last_update = time.time()
 
         # Remove any aabbs, chs, kdops, collision points and labels from the scene
         self.clear_attributes()

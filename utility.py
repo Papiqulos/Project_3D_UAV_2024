@@ -10,21 +10,20 @@ import trimesh
 from kdnode import KdNode
 
 # Not used
-def rSubset(arr, r):
-    # return list of all subsets of length r
-    # to deal with duplicate subsets use set(list(combinations(arr, r)))
+def combs(arr, r):
+    """Generate all combinations of r elements from an array arr."""
     return set(list(combinations(arr, r)))
 
 def default_plane(size:float=1.0) -> o3d.geometry.TriangleMesh:
-    '''
+    """
     Contruct a default plane pointing in the upward y direction 
     
     Args:
-    - size: Size of the plane
+        size : Size of the plane
     
     Returns:
-    - plane_mesh: Open3D TriangleMesh object representing the plane.
-    '''
+        plane_mesh : Open3D TriangleMesh object representing the plane.
+    """
     # Define vertices of the plane (two triangles)
     vertices = np.array([[-size,  0.0,  -size],  # Vertex 0
                         [ size,  0.0,  -size],  # Vertex 1
@@ -40,21 +39,19 @@ def default_plane(size:float=1.0) -> o3d.geometry.TriangleMesh:
     plane_mesh.vertices = o3d.utility.Vector3dVector(vertices)
     plane_mesh.triangles = o3d.utility.Vector3iVector(faces)
 
-    # print(f"----{ len(vertices[faces]) }")
-
     return plane_mesh
 
 def rotation_matrix_from_axis_angle(axis:np.ndarray, angle:float) -> np.ndarray:
-    '''
+    """
     Create a rotation matrix from an axis-angle representation.
     
     Args:
-    - axis: np.array of shape (3,) representing the rotation axis.
-    - angle: float representing the rotation angle in radians.
+        axis : np.array of shape (3,) representing the rotation axis.
+        angle : float representing the rotation angle in radians.
     
     Returns:
-    - R: np.array of shape (3, 3) representing the rotation matrix.
-    '''
+        R : np.array of shape (3, 3) representing the rotation matrix.
+    """
     # Normalize the rotation axis
     axis = axis / np.linalg.norm(axis)
     
@@ -80,11 +77,11 @@ def euler_angles_to_rotation_matrix(euler_angles:np.ndarray) -> np.ndarray:
     """
     Create a rotation matrix from Euler angles.
 
-    Parameters:
-    - euler_angles: Euler angles [rx, ry, rz] in radians
+    Args:
+        euler_angles : Euler angles [rx, ry, rz] in radians
 
     Returns:
-    - Rotation matrix
+        rotation_matrix : The 3x3 rotation matrix
     """
     rx, ry, rz = euler_angles
 
@@ -106,15 +103,15 @@ def euler_angles_to_rotation_matrix(euler_angles:np.ndarray) -> np.ndarray:
 
 # Not used
 def compute_euler_angles(direction:np.ndarray) -> np.ndarray:
-    '''
+    """
     Compute Euler angles from a direction vector.
     
     Args:
-    - direction: np.array of shape (3,) representing the direction vector.
+        direction : np.array of shape (3,) representing the direction vector.
     
     Returns:
-    - euler_angles: np.array of shape (3,) representing the Euler angles [alpha, beta, gamma].
-    '''
+        euler_angles : np.array of shape (3,) representing the Euler angles [alpha, beta, gamma].
+    """
     x, y, z = direction
     
     # Yaw (alpha)
@@ -132,15 +129,13 @@ def generate_plane(direction:np.ndarray, translation:np.ndarray, size:float = 1.
     """
     Generate a plane mesh with specified orientation and position.
 
-    Parameters:
-    - direction: Direction vector [dx, dy, dz] of the plane.
-    - translation: Translation vector [tx, ty, tz] for position.
-    - size: Size of the plane.
+    Args:
+        direction : Direction vector [dx, dy, dz] of the plane.
+        translation : Translation vector [tx, ty, tz] for position.
+        size : Size of the plane.
 
     Returns:
-    - plane: Open3D TriangleMesh object representing the plane.
-    - transformed_center: Transformed center of the plane after applying rotation and translation.
-    - transformed_dir: Transformed direction vector of the plane after applying rotation.
+        tuple : (plane, center, dir) where  plane is the plane mesh, center is the center of the plane, and dir is the direction vector of the plane.
     """
     # Create a default plane
     plane = default_plane(size)
@@ -183,17 +178,17 @@ def generate_plane(direction:np.ndarray, translation:np.ndarray, size:float = 1.
     return plane, transformed_center, transformed_dir
 
 def intersection_of_three_planes(plane1:np.ndarray, plane2:np.ndarray, plane3:np.ndarray) -> np.ndarray:
-    '''
+    """
     Compute the intersection point of three planes in 3D space.
     
     Args:
-    - plane1: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
-    - plane2: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
-    - plane3: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+        plane1: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+        plane2: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+        plane3: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
     
     Returns:
-    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the planes do not intersect.
-    '''
+        intersection_point: np.array of shape (3,) representing the intersection point, or None if the planes do not intersect.
+    """
     # Extract coefficients from the plane equations
     A = np.array([plane1[:3], plane2[:3], plane3[:3]])
     b = np.array([-plane1[3], -plane2[3], -plane3[3]])
@@ -212,11 +207,11 @@ def plane_equation_from_pos_dir(plane_pos:np.ndarray, plane_dir:float) -> np.nda
     Compute the plane equation parameters from a position and direction vector.
     
     Args:
-    - plane_pos: np.array of shape (3,) representing a point on the plane.
-    - plane_dir: np.array of shape (3,) representing the direction vector of the plane.
+        plane_pos: np.array of shape (3,) representing a point on the plane.
+        plane_dir: np.array of shape (3,) representing the direction vector of the plane.
     
     Returns:
-    - plane_params: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
+        plane_params: np.array of shape (4,) representing the plane equation parameters [a, b, c, d].
     """
     # Normalize the plane direction
     # normal_dir = plane_dir / np.linalg.norm(plane_dir)
@@ -231,13 +226,13 @@ def intersect_line_plane(p1:Point3D|np.ndarray, p2:Point3D|np.ndarray, plane_nor
     Finds the intersection point of a line and a plane in 3D space.
     
     Args:
-    - p1: np.array of shape (3,) or Point3D object representing the first point on the line.
-    - p2: np.array of shape (3,) or Point3D object representing the second point on the line.
-    - plane_normal: np.array of shape (3,) representing the normal vector of the plane.
-    - plane_d: float representing the distance from the origin (d in plane equation).
+        p1: np.array of shape (3,) or Point3D object representing the first point on the line.
+        p2: np.array of shape (3,) or Point3D object representing the second point on the line.
+        plane_normal: np.array of shape (3,) representing the normal vector of the plane.
+        plane_d: float representing the distance from the origin (d in plane equation).
     
     Returns:
-    - intersection_point: np.array of shape (3,) representing the intersection point, or None if the line is parallel to the plane.
+        intersection_point: np.array of shape (3,) representing the intersection point, or None if the line is parallel to the plane.
     """
     if isinstance(p1, Point3D):
         p1 = np.array([p1.x, p1.y, p1.z])
@@ -264,14 +259,14 @@ def intersect_line_plane(p1:Point3D|np.ndarray, p2:Point3D|np.ndarray, plane_nor
     return intersection_point
 
 def o3d_to_mesh(o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
-        '''Converts an Open3D mesh to a Mesh3D object.
+        """Converts an Open3D mesh to a Mesh3D object.
 
         Args:
             o3d_mesh: The Open3D mesh
 
         Returns:
             mesh: The Mesh3D object
-        '''
+        """
         mesh = Mesh3D()
         mesh.vertices = np.array(o3d_mesh.vertices)
         mesh.triangles = np.array(o3d_mesh.triangles)
@@ -280,14 +275,14 @@ def o3d_to_mesh(o3d_mesh:o3d.geometry.TriangleMesh) -> Mesh3D:
         return mesh
     
 def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
-    '''Converts a Mesh3D object to an Open3D mesh.
+    """Converts a Mesh3D object to an Open3D mesh.
 
     Args:
         mesh: The Mesh3D object
 
     Returns:
         o3d_mesh: The Open3D mesh
-    '''
+    """
     o3d_mesh = o3d.geometry.TriangleMesh()
     o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
     o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.triangles)
@@ -295,31 +290,32 @@ def mesh_to_o3d(mesh:Mesh3D) -> o3d.geometry.TriangleMesh:
 
     return o3d_mesh
 
+# Not used
 def get_nearest_point(point:np.ndarray, mesh:Mesh3D, lst:bool = True) -> Point3D|np.ndarray:
-        '''Get the nearest point to a given point on the mesh.
+    """Get the nearest point to a given point on the mesh using a k-d tree.
 
-        Args:
-            point
-            mesh 
-            lst: If True, return the nearest point as a list, else return as a Point3D object
+    Args:
+        point : The point
+        mesh : The mesh
+        lst : If True, return the nearest point as a list, else return as a Point3D object
 
-        Returns:
-            nearest_point
-        '''
-        # Construct the k-d tree from the mesh vertices
-        kd_tree = KdNode.build_kd_node(np.array(mesh.vertices))
+    Returns:
+        nearest_point : The nearest point
+    """
+    # Construct the k-d tree from the mesh vertices
+    kd_tree = KdNode.build_kd_node(np.array(mesh.vertices))
 
-        # Convert the point to Point3D object
-        point = Point3D(np.array(point), color=Color.BLACK, size=3)
-        # self.addShape(point, f"point{random.randint(0, 1000)}")
+    # Convert the point to Point3D object
+    point = Point3D(np.array(point), color=Color.BLACK, size=3)
+    # self.addShape(point, f"point{random.randint(0, 1000)}")
 
-        nearest_node = KdNode.nearestNeighbor(point, kd_tree)
-        if lst:
-            nearest_point = nearest_node.point
-        else:
-            nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
+    nearest_node = KdNode.nearestNeighbor(point, kd_tree)
+    if lst:
+        nearest_point = nearest_node.point
+    else:
+        nearest_point = Point3D(nearest_node.point, color=Color.CYAN, size=3)
 
-        return nearest_point
+    return nearest_point
 
 def get_convex_hull_of_pcd(points:np.ndarray) -> Mesh3D:
     '''Creates a triangle mesh from a set of points by creating the convex hull of the points.'''
@@ -378,13 +374,13 @@ def intersect_cuboids(cuboid_a, cuboid_b):
     """
     Computes the intersection cuboid formed by two colliding cuboids, if any.
 
-    Parameters:
-    - corners_a: A numpy array of shape (8, 3) representing the 8 corners of the first cuboid.
-    - corners_b: A numpy array of shape (8, 3) representing the 8 corners of the second cuboid.
+    Args:
+        cuboid_a: The first cuboid
+        cuboid_b: The second cuboid
 
     Returns:
-    - intersect_min: A numpy array representing the minimum coordinates of the intersection cuboid.
-    - intersect_max: A numpy array representing the maximum coordinates of the intersection cuboid.
+        tuple: (intersect_min, intersect_max, True) if the cuboids intersect, else (None, None, False)
+    
     """
     # Find min and max coordinates for both cuboids
     min_a, max_a = np.array([cuboid_a.x_min, cuboid_a.y_min, cuboid_a.z_min]), np.array([cuboid_a.x_max, cuboid_a.y_max, cuboid_a.z_max])
@@ -405,14 +401,13 @@ def collision(mesh1:Mesh3D, mesh2:Mesh3D, points_flag:bool = False, normal_flag:
     """Check if two meshes are in collision using trimesh library.
     
     Args:
-    - mesh1: First mesh
-    - mesh2: Second mesh
-    - points_flag: If True, return the collision points
-    - normal_flag: If True, return the collision normals
-    
+        mesh1: First mesh
+        mesh2: Second mesh
+        points_flag: If True, return the collision points too
+        normal_flag: If True, return the collision normals too
+     
     Returns:
-    - True if the meshes are in collision, False otherwise
-    - points: List of collision points if points_flag is True
+        tuple: (collision, points, normals) 
     """
 
     trimesh1 = trimesh.Trimesh(vertices=mesh1.vertices, faces=mesh1.triangles)
@@ -436,12 +431,12 @@ def shift_center_of_mass(mesh:Mesh3D, new_center:np.ndarray) -> Mesh3D:
     """
     Shift the center of mass of a mesh to a new position.
 
-    Parameters:
-    - mesh: The input mesh
-    - new_center: The new center of mass
+    Args:
+        mesh: The input mesh
+        new_center: The new center of mass
 
     Returns:
-    - mesh: The mesh with the center of mass shifted
+        mesh: The mesh with the center of mass shifted
     """
     # Compute the current center of mass
     current_center = np.mean(mesh.vertices, axis=0)
@@ -455,14 +450,14 @@ def shift_center_of_mass(mesh:Mesh3D, new_center:np.ndarray) -> Mesh3D:
     return mesh
 
 def unit_sphere_normalization(mesh:Mesh3D) -> Mesh3D:
-    '''Applies unit sphere normalization to the mesh.
+    """Applies unit sphere normalization to the mesh.
 
     Args:
-        mesh: The mesh
+        mesh : The mesh
 
     Returns:
-        normalized_mesh: The normalized mesh
-    '''
+        normalized_mesh : The normalized mesh
+    """
 
     mesh.vertices = np.array(mesh.vertices)
     center = np.mean(mesh.vertices, axis=0)
@@ -476,11 +471,11 @@ def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
     """Get the projection of a mesh on a plane.
     
     Args:
-    - mesh: The mesh
-    - plane: The plane of projection ("xy", "xz", "yz")
+        mesh : The mesh
+        plane : The plane of projection ("xy", "xz", "yz")
 
     Returns:
-    - proj_mesh: The projected mesh
+        proj_mesh : The projected mesh
     """
     vertices = np.array(mesh.vertices)
     v = vertices.copy()
@@ -496,6 +491,7 @@ def get_projection(mesh:Mesh3D, plane:str) -> Mesh3D:
     proj_mesh.vertices = v
     proj_mesh.triangles = mesh.triangles
 
+    # Remove duplicated and unreferenced vertices
     proj_mesh.remove_duplicated_vertices()
     proj_mesh.remove_unreferenced_vertices()
 
@@ -505,13 +501,11 @@ def get_min_max_directions(mesh:Mesh3D, directions:np.ndarray) -> tuple[np.ndarr
     """Get the minimum and maximum extents as well as the dot products of a mesh in certain directions.
     
     Args:
-    - mesh: The mesh
-    - directions: The directions
+        mesh : The mesh
+        directions : The directions
     
     Returns:
-    - min_extents: The minimum extents
-    - max_extents: The maximum extents
-    - dot_products: The dot products
+        tuple: (min_extents, max_extents, dot_products)
     """
     vertices = np.array(mesh.vertices)
 
