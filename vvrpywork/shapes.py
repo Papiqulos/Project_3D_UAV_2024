@@ -8,8 +8,8 @@ from math import sin, cos, acos
 from numbers import Number
 import numpy as np
 import open3d as o3d
-import open3d.visualization.gui as gui
-import open3d.visualization.rendering as rendering
+import open3d.visualization.gui as gui # type: ignore
+import open3d.visualization.rendering as rendering # type: ignore
 from pyglet import shapes
 from pyglet.graphics import Group
 import pyglet.gl
