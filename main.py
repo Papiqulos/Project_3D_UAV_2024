@@ -191,6 +191,27 @@ class UavSim(Scene3D):
                 self.print("Drones already exist. Clear them first.")
                 return
             self.show_drones(self.num_of_drones, rand_rot=False, label=False)
+
+
+            ## TESTING
+            # mesh1 = Mesh3D(path="models/F52.obj", color=Color.RED)
+            # mesh1 = U.unit_sphere_normalization(mesh1)
+            # mesh2 = Mesh3D(path="models/Helicopter.obj", color=Color.GREEN)
+            # mesh2 = U.unit_sphere_normalization(mesh2)
+
+            # self.meshes["drone_1"] = mesh1
+            # self.meshes["drone_2"] = mesh2
+
+            # self.speeds["drone_1"] = SPEED_MAP[mesh1.path]
+            # self.speeds["drone_2"] = SPEED_MAP[mesh2.path]
+
+            # self.addShape(mesh1, "drone_1")
+            # self.addShape(mesh2, "drone_2")
+
+            # self.in_bounds = self.meshes.copy()
+
+            # self.move_drone_to_point(mesh1, "drone_1", [0, 6, 0])
+            # self.move_drone_to_point(mesh2, "drone_2", [0, 8, 0])
         
         if symbol == Key.P:
 
