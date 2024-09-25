@@ -57,8 +57,3 @@ Once the setup is complete, you can run the drone simulation app. Below are the 
 - `F`: Simulate without collisions
 - `Q`: Show statistics
 - `SPACE`: Trigger the landing protocol
-
-## License
-
-This project is licensed under [appropriate license].
-
