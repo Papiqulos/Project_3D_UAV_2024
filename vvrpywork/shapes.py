@@ -2221,7 +2221,7 @@ class Cuboid3D(Shape):
     be axis-aligned. If you need a cuboid that supports rotation, use
     the more flexible (but less robust) `Cuboid3DGeneralized`.
     '''
-
+    # Minor addition
     def __init__(self, p1:Point3D|NDArray3|List3|Tuple3, p2:Point3D|NDArray3|List3|Tuple3, width:Number=1, color:ColorType=(0, 0, 0), filled:bool=False):
         '''Inits Cuboid3D given 2 vertices of the cuboid.
 
@@ -3150,6 +3150,7 @@ class LineSet3D(ShapeSet):
 class Mesh3D(ShapeSet):
     '''A class used to represent a triangle mesh in 3D space.'''
 
+    # Minor addition
     def __init__(self, path:None|str=None, color:ColorType=(0, 0, 0)):
         '''Inits Mesh3D.
 
@@ -3246,19 +3247,6 @@ class Mesh3D(ShapeSet):
     def vertex_colors(self, colors:NDArray|List|Tuple):
         self._shape.vertex_colors = o3d.utility.Vector3dVector(colors)
 
-    # My addition
-    def get_center(self, lst=True) -> Point3D|NDArray:
-        '''Returns the center of the mesh.
-        Args:
-            lst : If True, returns the center as a list of numpy arrays.
-        Returns:
-            The center of the mesh as a `Point3D` object.
-        '''
-        if lst:
-            return np.mean(self.vertices, axis=0)
-        else:
-            return Point3D(np.mean(self.vertices, axis=0), color=Color.RED, size=10)
-
     def remove_duplicated_vertices(self):
         '''Removes duplicated vertices.'''
         self._shape.remove_duplicated_vertices()
@@ -3291,6 +3279,19 @@ class Mesh3D(ShapeSet):
         m.vertices = (((-1, 0, 0), (0, 1, 0), (0, 0, -1)) @ m.vertices.T).T
         m.vertex_normals = (((-1, 0, 0), (0, 1, 0), (0, 0, -1)) @ m.vertex_normals.T).T
         return m
+    
+    # My addition
+    def get_center(self, lst=True) -> Point3D|NDArray:
+        '''Returns the center of the mesh.
+        Args:
+            lst : If True, returns the center as a list of numpy arrays.
+        Returns:
+            The center of the mesh as a `Point3D` object.
+        '''
+        if lst:
+            return np.mean(self.vertices, axis=0)
+        else:
+            return Point3D(np.mean(self.vertices, axis=0), color=Color.RED, size=10)
     
     # My addition
     def get_copy(self) -> Mesh3D:
