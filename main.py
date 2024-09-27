@@ -155,6 +155,7 @@ class UavSim(Scene3D):
         bottom_right_point = bottom_right_corner_plane.get_all_points(lst=True)[4]
         
         self.bounding_cuboid = Cuboid3D(p1=2*top_left_point, p2=2*bottom_right_point+[0, self.y_bound, 0], color=Color.RED, filled=False)
+        
         self.shown_bounds = True
     
     # INTERACTION FUNCTIONS
@@ -1341,7 +1342,7 @@ class UavSim(Scene3D):
                             
 
                 # Land one drone at a time
-                return
+                # return
             
             # If the drone is close to the landing pad, move it to the landing pad
             if distance <= 0.1:
